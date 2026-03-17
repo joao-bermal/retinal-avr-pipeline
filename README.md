@@ -50,8 +50,11 @@ Este projeto depende ativamente de tensores montados via GPU e processamento Ope
 git clone https://github.com/joao-bermal/retinal-avr-pipeline.git
 cd retinal-avr-pipeline
 
-# Instale os requerimentos do seu requirements.txt compatível com CUDA
+# Para usuários de GPUs NVIDIA (CUDA):
 pip install -r requirements.txt
+
+# Para usuários de GPUs AMD (ROCm):
+pip install -r requirements-rocm.txt
 ```
 
 ---

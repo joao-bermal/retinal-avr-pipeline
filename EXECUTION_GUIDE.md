@@ -10,10 +10,14 @@ Este guia descreve o passo a passo completo para rodar o projeto desde o **Passo
 Certifique-se de que você está num ambiente virtual ativo (venv ou conda) com as bibliotecas essenciais instaladas, em especial o PyTorch.
 
 ```bash
+# Se utilizar GPU NVIDIA (CUDA):
 pip install -r requirements.txt
+
+# Se utilizar GPU AMD (ROCm):
+pip install -r requirements-rocm.txt
 ```
 
-*(Nota: Caso utilize uma GPU NVIDIA, verifique se a versão instalada do `torch` e `torchvision` correspondem ao seu CUDA Toolkit).*
+*(Nota: O PyTorch e o Torchvision possuem compilações específicas para parear com o hardware. Utilize os arquivos acima para puxar os pesos das builds corretas (CUDA vs. ROCm).*
 
 ### 2. Disposição dos Dados (Datasets)
 Como as imagens pesam >130MB, elas não ficam no GitHub. Você precisa fazer o download do arquivo `data.zip` hospedado externamente pelo autor:
