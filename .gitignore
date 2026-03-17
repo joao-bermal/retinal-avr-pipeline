@@ -1,0 +1,45 @@
+# Python / Envs
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.venv
+.conda/
+Anaconda3/
+anaconda_projects/
+
+# Pacotes
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# Jupyter
+.ipynb_checkpoints
+
+# VSCode / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignorar ZIPs temporários
+*.zip
+*.tar.gz
+*.rar
+
+# IMPORTANTE: Pastas gigantes (> 2.3GB de dados e binários) que fazer o push travar no GitHub
+data/
+models/
