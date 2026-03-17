@@ -41,5 +41,7 @@ lib64/
 *.rar
 
 # IMPORTANTE: Pastas gigantes (> 2.3GB de dados e binários) que fazer o push travar no GitHub
-data/
-models/
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
