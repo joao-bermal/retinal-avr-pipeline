@@ -23,7 +23,7 @@ A solução é composta por duas redes neurais primárias:
 Para propósitos de **Engenharia de Machine Learning (MLOps)** e reprodutibilidade científica, abolimos a declaração desorganizada em notebooks e consolidamos o motor analítico da seguinte forma:
 
 ```text
-├── data/                  # Root para as bases DRIVE, IOSTAR, RITE
+├── data/                  # Root para as bases DRIVE, IOSTAR, RITE (Baixe o zip no Google Drive link na seção de Execução)
 ├── EXECUTION_GUIDE.md     # 🚀 Manual passo a passo de como rodar do Zero 
 ├── main.py                # 🚪 Ponto Único de Entrada (Entrypoint/CLI)
 ├── notebooks/

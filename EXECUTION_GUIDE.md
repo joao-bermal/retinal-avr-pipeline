@@ -16,7 +16,11 @@ pip install -r requirements.txt
 *(Nota: Caso utilize uma GPU NVIDIA, verifique se a versão instalada do `torch` e `torchvision` correspondem ao seu CUDA Toolkit).*
 
 ### 2. Disposição dos Dados (Datasets)
-Sua base de dados bruta deve estar extraída dentro da pasta `data/`, respeitando as subpastas esperadas pelas configurações em `src/config/settings.py`. Exemplo da estrutura para o treino de Segmentação com o DRIVE:
+Como as imagens pesam >130MB, elas não ficam no GitHub. Você precisa fazer o download do arquivo `data.zip` hospedado externamente pelo autor:
+1. **Baixe o arquivo `data.zip` em:** [Google Drive - Retinal AVR Data](https://drive.google.com/file/d/1VUNfJkRd8V9RmR--NlnI_RZg84Ioz-E8/view?usp=sharing)
+2. **Extraia o conteúdo** diretamente na raiz do projeto, para que a pasta `data/` seja recriada com as subpastas esperadas pelo sistema.
+
+Exemplo da estrutura resultante para o treino de Segmentação com o DRIVE:
 
 ```text
 data/
