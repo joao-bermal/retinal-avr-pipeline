@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from src.training.segmentation_trainer import EnhancedSegmentationTrainer
 from src.training.av_classification_trainer import EnhancedMultiDatasetTrainer
 from src.pipeline.integrated_pipeline import ScientificAVRPipeline
-from src.config.settings import SEGMENTATION_CONFIG, AV_CLASSIFICATION_CONFIG, OPTIC_DISC_CONFIG, PIPELINE_CONFIG
+from src.config.settings import SEGMENTATION_CONFIG, AV_CLASSIFICATION_CONFIG, OPTIC_DISC_CONFIG, PIPELINE_CONFIG, DEVICE
 from src.data.segmentation_dataset import EnhancedDRIVEDataset, SegmentationAugmentation
 from src.data.av_classification_dataset import EnhancedIOSTARDataset, CombinedAVDataset
 from src.data.optic_disc_dataset import OpticDiscDataset
@@ -115,7 +115,7 @@ def main():
         # Generate scientific evidence plots locally in run container
         if best_model_path and best_model_path.exists():
             print(f"\nLoading best model for final metrics from {best_model_path}")
-            model.load_state_dict(torch.load(best_model_path, map_location=SEGMENTATION_CONFIG.get("DEVICE", "cuda"), weights_only=True))
+            model.load_state_dict(torch.load(best_model_path, map_location=DEVICE, weights_only=True))
             
             final_metrics = evaluate_best_model(model, val_loader)
             
@@ -126,7 +126,7 @@ def main():
             print("\nGenerating Scientific Plots and Evidence...")
             create_metrics_visualization_segmentation(history, save_path=evidence_path / 'training_curves_final.png')
             create_comprehensive_training_analysis_segmentation(history, final_metrics, save_path=evidence_path / 'fig03_training_curves_complete.png')
-            create_sample_predictions_plot_segmentation(model, val_ds, SEGMENTATION_CONFIG.get("DEVICE", "cuda"), num_samples=3, save_path=evidence_path / 'sample_predictions.png')
+            create_sample_predictions_plot_segmentation(model, val_ds, DEVICE, num_samples=3, save_path=evidence_path / 'sample_predictions.png')
             
             create_architecture_analysis_complete_segmentation(
                 model, 
@@ -242,7 +242,7 @@ def main():
         best_model_path, history, final_metrics, run_id = trainer.train(epochs=OPTIC_DISC_CONFIG["TRAINING"]["EPOCHS"])
 
         if best_model_path and best_model_path.exists():
-            model.load_state_dict(torch.load(best_model_path, map_location=OPTIC_DISC_CONFIG.get("DEVICE", "cuda"), weights_only=True))
+            model.load_state_dict(torch.load(best_model_path, map_location=DEVICE, weights_only=True))
             final_metrics = evaluate_best_model_od(model, val_loader)
 
             run_results_path = OPTIC_DISC_CONFIG["PATHS"]["RESULTS"] / run_id

@@ -39,6 +39,13 @@ data/
 
 *(Faça o mesmo para os datasets de classificação A/V - IOSTAR, RITE, LES-AV).*
 
+### 3. Imagens originais do IOSTAR (necessário para o disco óptico)
+
+O `data.zip` acima só inclui `GT/`, `AV_GT/`, `mask/` e `mask_OD/` do IOSTAR — faltam as
+30 imagens de fundo originais (`image/*.jpg`), que são a única fonte com máscara de disco
+óptico (`mask_OD/`) baixada neste projeto. Sem elas, `--train_od` e a avaliação do
+detector de disco óptico não funcionam. Coloque-as em `data/IOSTAR/image/`.
+
 ---
 
 ## 🏋️‍♂️ Passo 1: Treinamento dos Modelos (Codebase)
@@ -63,7 +70,25 @@ python main.py --train_av
 - **O que acontece**: Ele utilizará os datasets indicados no `settings.py` para alimentar o `EnhancedMultiDatasetAVNet`.
 - O peso final será salvo (ex: `models/av_classification/best_avnet.pth`).
 
-### C) Ajuste Dinâmico de Hiperparâmetros (Opcional)
+### C) Treinar o Detector do Disco Óptico
+
+Necessário para o cálculo correto da Zona B peripapilar (ver seção "Correção do disco
+óptico" abaixo). Dataset pequeno (~30 imagens do IOSTAR), então o treino é rápido mesmo
+sem GPU:
+
+```bash
+python main.py --train_od
+```
+- **O que acontece**: Reaproveita a arquitetura `EnhancedUNet` (mesma da segmentação de
+  vasos, trocando só o checkpoint) para segmentar o disco óptico a partir de
+  `data/IOSTAR/image/` + `data/IOSTAR/mask_OD/`.
+- O peso final será salvo em `models/optic_disc/run_<timestamp>/model_dice_*.pth`.
+- **Sem esse checkpoint treinado**, o pipeline cai automaticamente para uma heurística de
+  visão computacional clássica (região mais clara do canal vermelho + maior componente
+  conexo) — funciona, mas é bem menos precisa, principalmente no IOSTAR (imagens SLO,
+  bem diferentes das retinografias comuns em que a heurística foi pensada).
+
+### D) Ajuste Dinâmico de Hiperparâmetros (Opcional)
 Você notará no `main.py` que não é mais preciso editar o código-fonte manualmente para trocar parâmetros corriqueiros de treinamento. Basta usar as tags CLI:
 
 ```bash
@@ -97,6 +122,24 @@ Este passo pode ser feito individualmente por imagem via terminal:
 ```bash
 python main.py --run_pipeline "data/drive/test/images/01_test.tif"
 ```
+O resultado inclui `avr`, `crae`, `crve`, `risk_level`, e também
+`optic_disc_center`/`optic_disc_radius`/`optic_disc_method` (qual método localizou o
+disco óptico: `TRAINED_MODEL`, `CV_BRIGHTEST_REGION` ou, só em último caso,
+`FALLBACK_IMAGE_CENTER`).
+
+### Correção do disco óptico (Zona B peripapilar)
+
+O TCC original (seção "Região de Interesse (ROI Peripapilar)") documentava uma limitação:
+sem detecção automática de papila, o centro do disco óptico era estimado como o centro
+geométrico da imagem, e o raio como 15% da menor dimensão — uma simplificação que não é
+clinicamente válida (o disco óptico não fica no centro da retinografia). O
+`src/pipeline/optic_disc.py` substitui isso por detecção real, em ordem de preferência:
+
+1. Modelo treinado (`--train_od`) sobre `data/IOSTAR/mask_OD`.
+2. Heurística de CV clássico (região mais clara do canal vermelho + maior componente
+   conexo + círculo mínimo envolvente) — sempre disponível, sem treino.
+3. Só se nada funcionar: o antigo centro-da-imagem, agora sempre logado explicitamente
+   (nunca mais silencioso).
 
 ### Visualizações Interativas, Relatórios e Gráficos (Via Jupyter Notebook)
 A análise profunda dos resultados foi transferida com exclusividade e controle visual unificado para o notebook mestre:
