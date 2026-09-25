@@ -2,21 +2,21 @@ import torch
 from pathlib import Path
 
 # =============================================================================
-# CONFIGURAÇÕES GLOBAIS
+# GLOBAL CONFIGURATIONS
 # =============================================================================
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # =============================================================================
-# CONFIGURAÇÕES PARA SEGMENTAÇÃO DE VASOS (Enhanced U-Net)
+# VESSEL SEGMENTATION CONFIGURATIONS (Enhanced U-Net)
 # =============================================================================
 
 SEGMENTATION_CONFIG = {
     'DATASET': {
         'NAME': 'DRIVE',
-        'IMAGE_SIZE': (576, 608), # Altura, Largura
+        'IMAGE_SIZE': (576, 608), # Height, Width
         'NUM_CLASSES': 1,
-        'BASE_PATH': '../data/DRIVE',
+        'BASE_PATH': 'data/DRIVE',
         'TRAIN_IMAGES': 'training/images',
         'TRAIN_MASKS': 'training/1st_manual',
         'TEST_IMAGES': 'test/images',
@@ -32,19 +32,21 @@ SEGMENTATION_CONFIG = {
     'TRAINING': {
         'EPOCHS': 150,
         'BATCH_SIZE': 4,
-        'LEARNING_RATE': 1e-4,
-        'WEIGHT_DECAY': 1e-5,
+        'LEARNING_RATE': 5e-4,
+        'WEIGHT_DECAY': 1e-4,
         'EARLY_STOPPING_PATIENCE': 25,
         'GRADIENT_CLIPPING': 1.0,
-        'OPTIMIZER': 'AdamW',
+        'OPTIMIZER': 'Adam',
         'SCHEDULER': 'ReduceLROnPlateau',
-        'SCHEDULER_FACTOR': 0.5,
-        'SCHEDULER_PATIENCE': 10,
+        'SCHEDULER_FACTOR': 0.7,
+        'SCHEDULER_PATIENCE': 12,
     },
     'LOSS': {
         'NAME': 'CombinedLoss',
-        'BCE_WEIGHT': 0.5,
-        'DICE_WEIGHT': 0.5,
+        'DICE_WEIGHT': 0.4,
+        'FOCAL_WEIGHT': 0.3,
+        'BCE_WEIGHT': 0.2,
+        'IOU_WEIGHT': 0.1,
     },
     'TARGETS': {
         'DICE_SCORE': 0.7965,
@@ -64,12 +66,12 @@ SEGMENTATION_CONFIG = {
     }
 }
 
-# Criar diretórios se não existirem
+# Create directories if they do not exist
 for key in SEGMENTATION_CONFIG['PATHS']:
     SEGMENTATION_CONFIG['PATHS'][key].mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
-# CONFIGURAÇÕES PARA CLASSIFICAÇÃO A/V (Enhanced Multi-Dataset AV-Net)
+# A/V CLASSIFICATION CONFIGURATIONS (Enhanced Multi-Dataset AV-Net)
 # =============================================================================
 
 AV_CLASSIFICATION_CONFIG = {
@@ -80,17 +82,17 @@ AV_CLASSIFICATION_CONFIG = {
         'DATASETS': {
             'iostar': {
                 'enabled': True,
-                'BASE_PATH': '../data/IOSTAR',
+                'BASE_PATH': 'data/IOSTAR',
                 'weight': 1.0
             },
             'rite': {
                 'enabled': True,
-                'BASE_PATH': '../data/RITE',
+                'BASE_PATH': 'data/RITE',
                 'weight': 1.0
             },
             'lesav': {
                 'enabled': True,
-                'BASE_PATH': '../data/LES-AV',
+                'BASE_PATH': 'data/LES-AV',
                 'weight': 1.0
             }
         }
@@ -114,7 +116,7 @@ AV_CLASSIFICATION_CONFIG = {
     },
     'TRAINING': {
         'EPOCHS': 250,
-        'BATCH_SIZE': 8,
+        'BATCH_SIZE': 2,
         'LEARNING_RATE': 5e-4,
         'WEIGHT_DECAY': 1e-4,
         'GRADIENT_CLIPPING': 0.5,
@@ -144,21 +146,84 @@ AV_CLASSIFICATION_CONFIG = {
     }
 }
 
-# Criar diretórios se não existirem
+# Create directories if they do not exist
 for key in AV_CLASSIFICATION_CONFIG['PATHS']:
     AV_CLASSIFICATION_CONFIG['PATHS'][key].mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
-# CONFIGURAÇÕES PARA O PIPELINE INTEGRADO (AVR)
+# OPTIC DISC DETECTION CONFIGURATIONS (Enhanced U-Net, 1 canal)
+# =============================================================================
+# Reaproveita a arquitetura EnhancedUNet (mesma da segmentacao de vasos),
+# treinada sobre data/IOSTAR/mask_OD (unico dataset baixado com mascara de
+# disco optico). Usado para corrigir a Zona B peripapilar no calculo do AVR
+# (ver src/pipeline/optic_disc.py e src/pipeline/avr_calculator.py).
+
+OPTIC_DISC_CONFIG = {
+    'DATASET': {
+        'NAME': 'IOSTAR_OpticDisc',
+        'IMAGE_SIZE': (512, 512),  # Height, Width
+        'NUM_CLASSES': 1,
+        'BASE_PATH': 'data/IOSTAR',
+    },
+    'MODEL': {
+        'NAME': 'EnhancedUNet',
+        'IN_CHANNELS': 3,
+        'OUT_CHANNELS': 1,
+        'FEATURES': [64, 128, 256, 512],
+    },
+    'TRAINING': {
+        # Dataset pequeno (~30 imagens) -- poucas epocas, early stopping agressivo.
+        'EPOCHS': 80,
+        'BATCH_SIZE': 2,
+        'LEARNING_RATE': 5e-4,
+        'WEIGHT_DECAY': 1e-4,
+        'EARLY_STOPPING_PATIENCE': 15,
+        'GRADIENT_CLIPPING': 1.0,
+        'OPTIMIZER': 'Adam',
+        'SCHEDULER': 'ReduceLROnPlateau',
+        'SCHEDULER_FACTOR': 0.7,
+        'SCHEDULER_PATIENCE': 6,
+    },
+    'LOSS': {
+        'NAME': 'CombinedLoss',
+        'DICE_WEIGHT': 0.4,
+        'FOCAL_WEIGHT': 0.3,
+        'BCE_WEIGHT': 0.2,
+        'IOU_WEIGHT': 0.1,
+    },
+    'TARGETS': {
+        'DICE_SCORE': 0.85,  # disco optico e uma forma simples/compacta -> meta mais alta que vasos finos
+    },
+    'PATHS': {
+        'MODELS': Path('models/optic_disc'),
+        'RESULTS': Path('results/optic_disc'),
+        'LOGS': Path('logs/optic_disc'),
+        'EVIDENCE': Path('results/optic_disc/evidence'),
+    },
+    'VISUALIZATION': {
+        'SAVE_FREQUENCY': 10,
+    }
+}
+
+for key in OPTIC_DISC_CONFIG['PATHS']:
+    OPTIC_DISC_CONFIG['PATHS'][key].mkdir(parents=True, exist_ok=True)
+
+# =============================================================================
+# INTEGRATED PIPELINE CONFIGURATIONS (AVR)
 # =============================================================================
 
 PIPELINE_CONFIG = {
     'SEGMENTATION_MODEL_PATH': SEGMENTATION_CONFIG['PATHS']['MODELS'] / 'best_model.pth',
     'AV_CLASSIFICATION_MODEL_PATH': AV_CLASSIFICATION_CONFIG['PATHS']['MODELS'] / 'best_model.pth',
-    'AVR_MIN_VESSEL_THRESHOLD': 0.1, # Porcentagem mínima de vasos para calcular AVR
+    'OPTIC_DISC_MODEL_PATH': OPTIC_DISC_CONFIG['PATHS']['MODELS'] / 'best_model.pth',
+    'AVR_MIN_VESSEL_THRESHOLD': 0.1, # Minimum percentage of vessels to calculate AVR
+    'OD_DETECTION_METHOD': 'hybrid',  # 'hybrid' | 'trained_model' | 'cv' | 'fallback_center'
+    'OD_MIN_CONFIDENCE': 0.3,
+    'ZONE_B_INNER_DD': 0.5,  # protocolo Knudtson: anel entre 0.5 e 1.0 diametros do disco
+    'ZONE_B_OUTER_DD': 1.0,
     'OUTPUT_DIR': Path('results/integrated_pipeline'),
 }
 
 PIPELINE_CONFIG['OUTPUT_DIR'].mkdir(parents=True, exist_ok=True)
 
-print(f"Configurações carregadas. Dispositivo: {DEVICE}")
+print(f"Loaded configurations. Device: {DEVICE}")
