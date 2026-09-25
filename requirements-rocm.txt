@@ -1,4 +1,4 @@
---extra-index-url https://download.pytorch.org/whl/rocm6.2
+--extra-index-url https://download.pytorch.org/whl/rocm6.4
 albucore==0.0.24
 albumentations==2.0.8
 annotated-types==0.7.0
@@ -114,14 +114,14 @@ sniffio==1.3.1
 soupsieve==2.8
 stack-data==0.6.3
 stringzilla==4.0.14
-sympy==1.13.1
+sympy>=1.13.3
 terminado==0.18.1
 threadpoolctl==3.6.0
 tifffile==2025.5.10
 tinycss2==1.4.0
 tomli==2.2.1
-torch==2.5.1+rocm6.2
-torchvision==0.20.1+rocm6.2
+torch==2.9.1+rocm6.4
+torchvision==0.24.1+rocm6.4
 tornado==6.5.2
 tqdm==4.67.1
 traitlets==5.14.3
