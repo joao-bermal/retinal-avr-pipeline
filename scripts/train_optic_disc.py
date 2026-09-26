@@ -67,7 +67,7 @@ def main(epochs=None):
         features=C["MODEL"]["FEATURES"],
     ).to(DEVICE)
 
-    trainer = EnhancedSegmentationTrainer(model, train_loader, val_loader, resume=False, config=C)
+    trainer = EnhancedSegmentationTrainer(model, train_loader, val_loader, resume=False, config=C, keep_all_checkpoints=True)
 
     print("\nIniciando treino...")
     best_model_path, history, final_metrics, run_id = trainer.train(epochs=epochs)

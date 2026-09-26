@@ -1,0 +1,6 @@
+# Camada HTTP opcional sobre o pipeline (ver api/main.py).
+# Instale por cima de requirements.txt ou requirements-rocm.txt:
+#   pip install -r requirements-api.txt
+fastapi==0.141.1
+uvicorn==0.54.0
+python-multipart==0.0.32

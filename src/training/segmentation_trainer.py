@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 import torch, torch.optim as optim
 import logging
 import csv
@@ -9,12 +10,27 @@ from src.training.losses import CombinedLossOptimized
 from src.metrics.evaluation_metrics import compute_segmentation_metrics
 
 class EnhancedSegmentationTrainer:
-    def __init__(self, model, train_loader, val_loader, resume=False, config=None):
+    def __init__(self, model, train_loader, val_loader, resume=False, config=None,
+                 keep_all_checkpoints=False, batch_pause_seconds=0.0):
         # `config` permite reaproveitar este trainer genérico para outras
         # tarefas de segmentação binária (ex: disco óptico, ver
         # OPTIC_DISC_CONFIG) sem duplicar o loop de treino.
+        # `keep_all_checkpoints=True` mantém o .pth de cada nova melhor época
+        # (em vez de apagar o anterior) -- usado quando se quer avaliar
+        # múltiplas épocas por uma métrica além do dice de validação (ex:
+        # distância centro-a-centro do disco óptico).
+        # `batch_pause_seconds` insere uma pausa apos cada batch de treino --
+        # datasets pequenos/rapidos (ex: disco optico, 24 imagens) alimentam a
+        # GPU sem nenhum intervalo natural de carregamento de dados entre
+        # batches, sustentando 100% de utilizacao continua; em hardware com
+        # dissipacao termica marginal isso pode disparar picos de temperatura
+        # que nao aparecem em datasets maiores (mais tempo de I/O/augmentation
+        # por batch cria pausas naturais). Custo: treino mais lento, sem
+        # nenhum efeito no resultado final.
         C = config or SEGMENTATION_CONFIG
         self.config = C
+        self.keep_all_checkpoints = keep_all_checkpoints
+        self.batch_pause_seconds = batch_pause_seconds
         self.model = model.to(DEVICE)
         self.train_loader, self.val_loader = train_loader, val_loader
         self.criterion = CombinedLossOptimized()
@@ -127,6 +143,9 @@ class EnhancedSegmentationTrainer:
 
                 train_loss += loss.item()
 
+                if self.batch_pause_seconds > 0:
+                    time.sleep(self.batch_pause_seconds)
+
             train_loss /= len(self.train_loader)
 
             val_loss, dice, acc, sen, spe, iou = self.validate()
@@ -157,10 +176,11 @@ class EnhancedSegmentationTrainer:
                 self.best_dice, self.patience = dice, 0
                 
                 # Delete previous best model in this run if it exists
-                if self.best_path and self.best_path.exists():
+                # (a menos que keep_all_checkpoints peça pra manter o historico)
+                if not self.keep_all_checkpoints and self.best_path and self.best_path.exists():
                     self.best_path.unlink()
-                    
-                self.best_path = self.model_dir / f"model_dice_{dice:.4f}.pth"
+
+                self.best_path = self.model_dir / f"model_epoch{epoch+1:03d}_dice_{dice:.4f}.pth"
                 torch.save(self.model.state_dict(), self.best_path)
                 
                 self.logger.info(f"  🏆 NEW BEST MODEL! Dice: {dice:.4f}")

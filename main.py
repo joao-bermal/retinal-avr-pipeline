@@ -242,7 +242,11 @@ def main():
             out_channels=OPTIC_DISC_CONFIG["MODEL"]["OUT_CHANNELS"],
             features=OPTIC_DISC_CONFIG["MODEL"]["FEATURES"],
         )
-        trainer = EnhancedSegmentationTrainer(model, train_loader, val_loader, resume=args.resume, config=OPTIC_DISC_CONFIG)
+        trainer = EnhancedSegmentationTrainer(
+            model, train_loader, val_loader, resume=args.resume, config=OPTIC_DISC_CONFIG,
+            keep_all_checkpoints=True,  # dataset pequeno -- vale avaliar cada epoca por distancia centro-a-centro
+            batch_pause_seconds=0.3,  # dataset minusculo sustenta 100% de GPU sem pausa -- ver comentario no trainer
+        )
 
         best_model_path, history, final_metrics, run_id = trainer.train(epochs=OPTIC_DISC_CONFIG["TRAINING"]["EPOCHS"])
 
