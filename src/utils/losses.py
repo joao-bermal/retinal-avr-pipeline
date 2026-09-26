@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from src.config.settings import SEGMENTATION_CONFIG, AV_CLASSIFICATION_CONFIG
 
 class CombinedLoss(nn.Module):
-    """Função de perda combinada para segmentação (BCE + Dice)."""
+    """Combined loss function for segmentation (BCE + Dice)."""
     def __init__(self, bce_weight=0.5, dice_weight=0.5):
         super(CombinedLoss, self).__init__()
         self.bce_weight = bce_weight
@@ -29,7 +29,7 @@ class CombinedLoss(nn.Module):
         }
 
 class FocalLoss(nn.Module):
-    """Focal Loss para desequilíbrio de classes"""
+    """Focal Loss for class imbalance"""
     def __init__(self, alpha=None, gamma=2.0):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
@@ -52,7 +52,7 @@ class FocalLoss(nn.Module):
         return focal_loss.mean()
 
 class DiceLossAV(nn.Module):
-    """Dice Loss para segmentação multi-classe (A/V) - renomeada para evitar conflito"""
+    """Dice Loss for multi-class segmentation (A/V) - renamed to avoid conflict"""
     def __init__(self, smooth=1e-6):
         super(DiceLossAV, self).__init__()
         self.smooth = smooth
@@ -106,7 +106,7 @@ class IntraClassLoss(nn.Module):
         return intra_loss / (num_classes - 1)
 
 class EnhancedMultiLoss(nn.Module):
-    """Enhanced Multi-Loss para Classificação A/V Multi-Dataset"""
+    """Enhanced Multi-Loss for Multi-Dataset A/V Classification"""
     
     def __init__(self, config=AV_CLASSIFICATION_CONFIG):
         super(EnhancedMultiLoss, self).__init__()
@@ -140,7 +140,7 @@ class EnhancedMultiLoss(nn.Module):
         # Focal Loss
         focal = self.focal_loss(inputs, targets)
         
-        # Dice losses para classes A/V
+        # Dice losses for A/V classes
         try:
             dice_artery = self.dice_loss_av(inputs, targets, class_id=1)
             dice_vein = self.dice_loss_av(inputs, targets, class_id=2)

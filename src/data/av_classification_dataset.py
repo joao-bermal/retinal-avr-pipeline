@@ -9,9 +9,10 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 from src.config.settings import AV_CLASSIFICATION_CONFIG
+from src.data.utils import standardize_av_mask_rite, create_lesav_mask
 
 class EnhancedIOSTARDataset(Dataset):
-    """Enhanced IOSTAR Dataset - usando processamento original que funciona"""
+    """Enhanced IOSTAR Dataset - using original working processing"""
     
     def __init__(self, base_path, phase='train', transform=None):
         self.base_path = Path(base_path)
@@ -66,7 +67,7 @@ class EnhancedIOSTARDataset(Dataset):
             if av_img is None:
                 raise Exception(f"Error loading AV: {sample['av_path']}")
             
-            # USAR PROCESSAMENTO ORIGINAL QUE FUNCIONA
+            # USE ORIGINAL WORKING PROCESSING
             av_mask = self.process_av_ground_truth_original(av_img)
             vessel_binary = (vessel_img > 0).astype(np.uint8)
             
@@ -95,7 +96,7 @@ class EnhancedIOSTARDataset(Dataset):
             }
     
     def process_av_ground_truth_original(self, av_img):
-        """Process AV ground truth - CÓDIGO ORIGINAL QUE FUNCIONA"""
+        """Process AV ground truth - ORIGINAL WORKING CODE"""
         if len(av_img.shape) == 3:
             av_rgb = cv2.cvtColor(av_img, cv2.COLOR_BGR2RGB)
         else:
@@ -111,25 +112,25 @@ class EnhancedIOSTARDataset(Dataset):
         
         tolerance = 20
         
-        # Artérias (vermelho)
+        # Arteries (red)
         artery_mask = (r >= 255 - tolerance) & (g <= tolerance) & (b <= tolerance)
-        # Veias (azul)
+        # Veins (blue)
         vein_mask = (b >= 255 - tolerance) & (r <= tolerance) & (g <= tolerance)
         
-        classes[artery_mask] = 1  # Artéria
-        classes[vein_mask] = 2    # Veia
+        classes[artery_mask] = 1  # Artery
+        classes[vein_mask] = 2    # Vein
         
         return classes
 
 class EnhancedRITEDataset(Dataset):
-    """RITE - CORRIGIDO: vessel → av"""
+    """RITE - FIXED: vessel → av"""
     def __init__(self, base_path, phase='train', transform=None):
         self.base_path = Path(base_path)
         self.phase = phase
         self.transform = transform
         self.img_size = AV_CLASSIFICATION_CONFIG["DATASET"]["IMAGE_SIZE"]
         
-        # RITE paths - CORRIGIDO!
+        # RITE paths - FIXED!
         train_vessel_dir = self.base_path / 'training' / 'vessel'  # VESSEL INPUT ***
         train_av_dir = self.base_path / 'training' / 'av'          # A/V TARGET ***
         test_vessel_dir = self.base_path / 'test' / 'vessel'       # VESSEL INPUT ***
@@ -205,7 +206,7 @@ class EnhancedRITEDataset(Dataset):
             }
 
 class EnhancedLESAVDataset(Dataset):
-    """LES-AV Dataset - com masks separadas"""
+    """LES-AV Dataset - with separate masks"""
     def __init__(self, base_path, phase='train', transform=None):
         self.base_path = Path(base_path)
         self.phase = phase
@@ -278,7 +279,7 @@ class EnhancedLESAVDataset(Dataset):
             }
 
 class CombinedAVDataset(ConcatDataset):
-    """Combina múltiplos datasets A/V para treinamento multi-dataset."""
+    """Combines multiple A/V datasets for multi-dataset training."""
     def __init__(self, config, phase='train', transform=None):
         self.config = config
         self.phase = phase
@@ -289,45 +290,45 @@ class CombinedAVDataset(ConcatDataset):
         self.lengths = []
         self.weights = []
         
-        if config['DATASETS']['iostar']['enabled']:
+        if config['DATASET']['DATASETS']['iostar']['enabled']:
             try:
                 iostar_ds = EnhancedIOSTARDataset(
-                    config['DATASETS']['iostar']['BASE_PATH'], 
+                    config['DATASET']['DATASETS']['iostar']['BASE_PATH'], 
                     phase, 
                     transform
                 )
                 self.datasets.append(iostar_ds)
                 self.dataset_names.append('iostar')
                 self.lengths.append(len(iostar_ds))
-                self.weights.append(config['DATASETS']['iostar']['weight'])
+                self.weights.append(config['DATASET']['DATASETS']['iostar']['weight'])
             except Exception as e:
                 print(f"***x*** Failed to load IOSTAR: {e}")
         
-        if config['DATASETS']['rite']['enabled']:
+        if config['DATASET']['DATASETS']['rite']['enabled']:
             try:
                 rite_ds = EnhancedRITEDataset(
-                    config['DATASETS']['rite']['BASE_PATH'], 
+                    config['DATASET']['DATASETS']['rite']['BASE_PATH'], 
                     phase, 
                     transform
                 )
                 self.datasets.append(rite_ds)
                 self.dataset_names.append('rite')
                 self.lengths.append(len(rite_ds))
-                self.weights.append(config['DATASETS']['rite']['weight'])
+                self.weights.append(config['DATASET']['DATASETS']['rite']['weight'])
             except Exception as e:
                 print(f"***x*** Failed to load RITE: {e}")
         
-        if config['DATASETS']['lesav']['enabled']:
+        if config['DATASET']['DATASETS']['lesav']['enabled']:
             try:
                 lesav_ds = EnhancedLESAVDataset(
-                    config['DATASETS']['lesav']['BASE_PATH'], 
+                    config['DATASET']['DATASETS']['lesav']['BASE_PATH'], 
                     phase, 
                     transform
                 )
                 self.datasets.append(lesav_ds)
                 self.dataset_names.append('lesav')
                 self.lengths.append(len(lesav_ds))
-                self.weights.append(config['DATASETS']['lesav']['weight'])
+                self.weights.append(config['DATASET']['DATASETS']['lesav']['weight'])
             except Exception as e:
                 print(f"***x*** Failed to load LES-AV: {e}")
         

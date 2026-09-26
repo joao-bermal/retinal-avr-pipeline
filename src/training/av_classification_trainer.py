@@ -12,11 +12,31 @@ from src.training.losses import SOTALoss
 from src.metrics.av_metrics import av_pixel_metrics
 
 class EnhancedMultiDatasetTrainer:
-    def __init__(self, model, cfg, device, log_dir: Path):
+    def __init__(self, model, cfg, device, resume=False):
         self.model = model
         self.cfg = cfg
         self.device = device
-        self.log_dir = Path(log_dir); self.log_dir.mkdir(parents=True, exist_ok=True)
+        
+        from datetime import datetime
+        import logging
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_id = f"run_{timestamp}"
+        
+        # Paths
+        self.log_dir = cfg['PATHS']['LOGS'] / self.run_id
+        self.model_dir = cfg['PATHS']['MODELS'] / self.run_id
+        
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.model_dir.mkdir(parents=True, exist_ok=True)
+        self.best_path = None
+        
+        # Logging setup
+        self.logger = logging.getLogger(f"av_classification_{timestamp}")
+        self.logger.setLevel(logging.INFO)
+        self.logger.handlers.clear()
+        fh = logging.FileHandler(self.log_dir / f"training_{timestamp}.log")
+        fh.setFormatter(logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        self.logger.addHandler(fh)
 
         self.criterion = SOTALoss(cfg)
         self.optimizer = torch.optim.AdamW(
@@ -37,19 +57,33 @@ class EnhancedMultiDatasetTrainer:
 
         self.scheduler = LambdaLR(self.optimizer, lr_lambda)
         self.history = []
+        self.scaler = torch.amp.GradScaler('cuda' if torch.cuda.is_available() else 'cpu')
 
     def train_one_epoch(self, loader):
         self.model.train()
         run_loss = 0.0
+        
+        device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
         for batch in loader:
-            x = batch["image"].to(self.device)
-            y = batch["mask"].to(self.device).long()
-            self.optimizer.zero_grad()
-            logits = self.model(x)                             # já sai no HxW da entrada
-            loss_dict = self.criterion(logits, y)
-            loss = loss_dict["total"]
-            loss.backward()
-            self.optimizer.step()
+            x = batch["image"].to(self.device, non_blocking=True)
+            y = batch["mask"].to(self.device, non_blocking=True).long()
+            self.optimizer.zero_grad(set_to_none=True)
+            
+            with torch.amp.autocast(device_type=device_type, enabled=True):
+                logits = self.model(x)
+                loss_dict = self.criterion(logits, y)
+                loss = loss_dict["total"]
+                
+            self.scaler.scale(loss).backward()
+            
+            # Unscale before clipping
+            self.scaler.unscale_(self.optimizer)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg["TRAINING"].get("GRADIENT_CLIPPING", 0.5))
+            
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
             run_loss += float(loss.item())
         return run_loss / max(1, len(loader))
 
@@ -83,10 +117,13 @@ class EnhancedMultiDatasetTrainer:
         f1v   = float(np.mean([m["f1_vein"]  for m in mets]))
         return {"macro_f1": macro, "acc": acc, "f1_art": f1a, "f1_vein": f1v}
 
-    def fit(self, train_loader, val_loader, run_id: str, ckpt_dir: Path):
-        ckpt_dir = Path(ckpt_dir); ckpt_dir.mkdir(parents=True, exist_ok=True)
+    def fit(self, train_loader, val_loader):
         best_macro, patience = -1.0, 0
-        best_path = ckpt_dir / f"multi_dataset_best_model_{run_id}.pth"
+
+        self.logger.info("=" * 60)
+        self.logger.info("A/V CLASSIFICATION TRAINING STARTED")
+        self.logger.info(f"Run ID: {self.run_id}")
+        self.logger.info("=" * 60)
 
         for ep in range(1, self.epochs+1):
             tloss = self.train_one_epoch(train_loader)
@@ -103,21 +140,34 @@ class EnhancedMultiDatasetTrainer:
                 "lr": self.optimizer.param_groups[0]["lr"],
             }
             self.history.append(rec)
-            print(f"[AV][ep {ep:03d}] tloss={tloss:.4f} macroF1={valm['macro_f1']:.4f} acc={valm['acc']:.4f} lr={rec['lr']:.2e}")
+            msg = f"[AV][ep {ep:03d}] tloss={tloss:.4f} macroF1={valm['macro_f1']:.4f} acc={valm['acc']:.4f} lr={rec['lr']:.2e}"
+            print(msg)
+            self.logger.info(msg)
 
             if valm["macro_f1"] > best_macro:
                 best_macro, patience = valm["macro_f1"], 0
-                torch.save({"state_dict": self.model.state_dict()}, best_path)
+                
+                if self.best_path and self.best_path.exists():
+                    self.best_path.unlink()
+                
+                self.best_path = self.model_dir / f"model_f1_{best_macro:.4f}.pth"
+                torch.save({"state_dict": self.model.state_dict()}, self.best_path)
+                
+                print(f"  🏆 New best model saved! {self.best_path.name}")
+                self.logger.info(f"  🏆 New best model saved! {self.best_path.name}")
             else:
                 patience += 1
             if patience >= self.early:
-                print(f"Early stopping em ep {ep} (patience={self.early})")
+                stop_msg = f"  ⏹️ Early stopping at ep {ep} (patience={self.early})"
+                print(stop_msg)
+                self.logger.info(stop_msg)
                 break
 
-        # salvar histórico em CSV
-        hist_csv = self.log_dir / f"history_AV_{run_id}.csv"
+        # save history to CSV
+        hist_csv = self.log_dir / f"metrics_{self.run_id}.csv"
         with open(hist_csv, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(self.history[0].keys()))
             w.writeheader(); w.writerows(self.history)
-        print("Histórico salvo em:", hist_csv, "| Best:", best_path)
-        return best_path, hist_csv
+            
+        print("Training completed. Best F1:", best_macro)
+        return self.best_path, self.history, {"macro_f1": best_macro}, self.run_id

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class ResidualBlock(nn.Module):
-    """Bloco residual para Enhanced U-Net"""
+    """Residual block for Enhanced U-Net"""
     def __init__(self, channels: int):
         super(ResidualBlock, self).__init__()
         self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
@@ -12,7 +12,7 @@ class ResidualBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(channels)
         self.relu = nn.ReLU(inplace=True)
         
-        # Inicialização Xavier
+        # Xavier initialization
         nn.init.xavier_uniform_(self.conv1.weight)
         nn.init.xavier_uniform_(self.conv2.weight)
         
@@ -43,7 +43,7 @@ class EnhancedConvBlock(nn.Module):
         if self.use_residual:
             self.residual = ResidualBlock(out_channels)
         
-        # Inicialização
+        # Initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.xavier_uniform_(m.weight)
@@ -92,7 +92,7 @@ class EnhancedUNet(nn.Module):
                 EnhancedConvBlock(feature * 2, feature, use_residual=True)
             )
         
-        # CLASSIFICAÇÃO FINAL
+        # FINAL CLASSIFICATION
         self.final_conv = nn.Conv2d(features[0], out_channels, kernel_size=1)
         self.sigmoid = nn.Sigmoid()
         

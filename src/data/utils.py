@@ -36,7 +36,7 @@ def harmonize_av_data(image, av_mask, target_size=768):
     return image, av_mask
 
 def standardize_av_mask_rite(av_mask):
-    """Standardize RITE A/V mask - baseado no processamento IOSTAR que funciona"""
+    """Standardize RITE A/V mask - based on functional IOSTAR processing"""
     h, w = av_mask.shape[:2]
     classes = np.zeros((h, w), dtype=np.uint8)
     
@@ -48,13 +48,13 @@ def standardize_av_mask_rite(av_mask):
         
         tolerance = 30  # Slightly higher tolerance for RITE
         
-        # Artérias (vermelho)
+        # Arteries (red)
         artery_mask = (r >= 255 - tolerance) & (g <= tolerance) & (b <= tolerance)
-        # Veias (azul)  
+        # Veins (blue)  
         vein_mask = (b >= 255 - tolerance) & (r <= tolerance) & (g <= tolerance)
         
-        classes[artery_mask] = 1  # Artéria
-        classes[vein_mask] = 2    # Veia
+        classes[artery_mask] = 1  # Artery
+        classes[vein_mask] = 2    # Vein
         
         # Alternative approach if no vessels detected
         artery_pixels = np.sum(artery_mask)
@@ -75,15 +75,15 @@ def standardize_av_mask_rite(av_mask):
                 low_intensity = (gray < median_val) & non_black
                 high_intensity = (gray >= median_val) & non_black
                 
-                classes[low_intensity] = 1   # Artéria (darker)
-                classes[high_intensity] = 2  # Veia (brighter)
+                classes[low_intensity] = 1   # Artery (darker)
+                classes[high_intensity] = 2  # Vein (brighter)
             else:
                 # Fallback: use red vs blue dominance
                 red_dominant = (r > b) & (r > g) & non_black
                 blue_dominant = (b > r) & (b > g) & non_black
                 
-                classes[red_dominant] = 1  # Artéria  
-                classes[blue_dominant] = 2   # Veia
+                classes[red_dominant] = 1  # Artery  
+                classes[blue_dominant] = 2   # Vein
     
     return classes
 
@@ -96,17 +96,17 @@ def standardize_av_mask_iostar(av_mask):
     standardized = np.zeros((h, w), dtype=np.uint8)
     
     if len(av_mask.shape) == 3:
-        # Assumindo encoding específico do IOSTAR
-        # Você pode ajustar baseado no formato real
+        # Assuming specific IOSTAR encoding
+        # You can adjust based on actual format
         gray = cv2.cvtColor(av_mask, cv2.COLOR_RGB2GRAY)
         
-        # Thresholding baseado em intensidade
-        # Ajustar baseado no formato real do IOSTAR
+        # Thresholding based on intensity
+        # Adjust based on IOSTAR actual format
         artery_mask = (gray > 64) & (gray < 128)
         vein_mask = gray > 128
         
-        standardized[artery_mask] = 1  # Artéria
-        standardized[vein_mask] = 2    # Veia
+        standardized[artery_mask] = 1  # Artery
+        standardized[vein_mask] = 2    # Vein
     
     return standardized
 
@@ -123,8 +123,8 @@ def create_lesav_mask(artery_path, vein_path, target_size=768):
     
     # Create combined mask
     combined = np.zeros_like(artery_mask, dtype=np.uint8)
-    combined[artery_mask > 128] = 1  # Artéria
-    combined[vein_mask > 128] = 2    # Veia
+    combined[artery_mask > 128] = 1  # Artery
+    combined[vein_mask > 128] = 2    # Vein
     
     return combined
 

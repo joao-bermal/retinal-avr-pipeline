@@ -11,17 +11,17 @@ from pathlib import Path
 from src.config.settings import SEGMENTATION_CONFIG, AV_CLASSIFICATION_CONFIG
 
 def calculate_comprehensive_metrics_segmentation(predictions: torch.Tensor, targets: torch.Tensor) -> Dict[str, float]:
-    """Calcula métricas abrangentes para segmentação (Dice, IoU, Accuracy, Sensitivity, Specificity, Precision, F1, AUC-ROC)."""
+    """Calculates comprehensive segmentation metrics (Dice, IoU, Accuracy, Sensitivity, Specificity, Precision, F1, AUC-ROC)."""
     
-    # Certificar que os tensores estão na CPU e são numpy arrays
+    # Ensure tensors are on CPU and numpy arrays
     pred_np = predictions.cpu().numpy()
     target_np = targets.cpu().numpy()
 
-    # Binarizar predições e targets para métricas baseadas em limiar
+    # Binarize predictions and targets for threshold-based metrics
     pred_binary = (pred_np > 0.5).astype(np.uint8)
     targets_binary = (target_np > 0.5).astype(np.uint8)
 
-    # Achatamento para sklearn
+    # Flattening for sklearn
     pred_flat = pred_binary.flatten()
     targets_flat = targets_binary.flatten()
     pred_prob_flat = pred_np.flatten()
@@ -42,7 +42,7 @@ def calculate_comprehensive_metrics_segmentation(predictions: torch.Tensor, targ
     union = pred_flat.sum() + targets_flat.sum() - intersection
     iou = intersection / (union + 1e-6)
     
-    # === ESPECIFICIDADE (True Negative Rate) ===
+    # === SPECIFICITY (True Negative Rate) ===
     tn = ((1 - pred_binary) * (1 - targets_binary)).sum()
     fp = (pred_binary * (1 - targets_binary)).sum()
     specificity = tn / (tn + fp + 1e-6)
@@ -54,7 +54,7 @@ def calculate_comprehensive_metrics_segmentation(predictions: torch.Tensor, targ
     except Exception:
         auc = 0.0
     
-    # === MONTAGEM DO DICIONÁRIO DE MÉTRICAS ===
+    # === METRICS DICTIONARY ASSEMBLY ===
     metrics = {
         'dice_score': float(dice),
         'iou': float(iou),
@@ -70,7 +70,7 @@ def calculate_comprehensive_metrics_segmentation(predictions: torch.Tensor, targ
 
 def print_metrics_comparison_segmentation(metrics: Dict[str, float], 
                                           targets: Dict[str, float] = None):
-    """Imprime métricas formatadas com comparação aos targets para segmentação."""
+    """Prints formatted metrics with target comparisons for segmentation."""
     
     if targets is None:
         targets = {
@@ -81,7 +81,7 @@ def print_metrics_comparison_segmentation(metrics: Dict[str, float],
             'iou': SEGMENTATION_CONFIG['TARGETS']['IOU']
         }
     
-    print("\n📊 MÉTRICAS DE PERFORMANCE (Segmentação):")
+    print("\n📊 PERFORMANCE METRICS (Segmentation):")
     print("-" * 50)
     
     for metric_name, value in metrics.items():
@@ -89,53 +89,53 @@ def print_metrics_comparison_segmentation(metrics: Dict[str, float],
         
         if target_value:
             status = "***" if value >= target_value else "⚠️"
-            print(f"{status} {metric_name.title():15}: {value:.4f} (meta: {target_value:.4f})")
+            print(f"{status} {metric_name.title():15}: {value:.4f} (target: {target_value:.4f})")
         else:
             print(f"📈 {metric_name.title():15}: {value:.4f}")
 
 def create_metrics_visualization_segmentation(history: Dict, save_path: Path = None):
-    """Cria visualização das métricas durante o treinamento de segmentação."""
+    """Creates a visualization of metrics during segmentation training."""
     
     epochs = range(1, len(history['train_dice']) + 1)
     
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     
     # Dice Score
-    axes[0, 0].plot(epochs, history['train_dice'], 'b-', label='Treino', linewidth=2)
-    axes[0, 0].plot(epochs, history['val_dice'], 'r-', label='Validação', linewidth=2)
+    axes[0, 0].plot(epochs, history['train_dice'], 'b-', label='Train', linewidth=2)
+    axes[0, 0].plot(epochs, history['val_dice'], 'r-', label='Validation', linewidth=2)
     axes[0, 0].axhline(y=SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE'], color='g', linestyle='--', 
-                      label=f'Meta ({SEGMENTATION_CONFIG["TARGETS"]["DICE_SCORE"]})', alpha=0.7)
+                      label=f'Target ({SEGMENTATION_CONFIG["TARGETS"]["DICE_SCORE"]})', alpha=0.7)
     axes[0, 0].set_title('Dice Score')
-    axes[0, 0].set_xlabel('Época')
+    axes[0, 0].set_xlabel('Epoch')
     axes[0, 0].set_ylabel('Dice Score')
     axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
     
     # Loss
-    axes[0, 1].plot(epochs, history['train_loss'], 'b-', label='Treino', linewidth=2)
-    axes[0, 1].plot(epochs, history['val_loss'], 'r-', label='Validação', linewidth=2)
+    axes[0, 1].plot(epochs, history['train_loss'], 'b-', label='Train', linewidth=2)
+    axes[0, 1].plot(epochs, history['val_loss'], 'r-', label='Validation', linewidth=2)
     axes[0, 1].set_title('Combined Loss')
-    axes[0, 1].set_xlabel('Época')
+    axes[0, 1].set_xlabel('Epoch')
     axes[0, 1].set_ylabel('Loss')
     axes[0, 1].legend()
     axes[0, 1].grid(True, alpha=0.3)
     
     # IoU
-    axes[1, 0].plot(epochs, history['train_iou'], 'b-', label='Treino', linewidth=2)
-    axes[1, 0].plot(epochs, history['val_iou'], 'r-', label='Validação', linewidth=2)
+    axes[1, 0].plot(epochs, history['train_iou'], 'b-', label='Train', linewidth=2)
+    axes[1, 0].plot(epochs, history['val_iou'], 'r-', label='Validation', linewidth=2)
     axes[1, 0].axhline(y=SEGMENTATION_CONFIG['TARGETS']['IOU'], color='g', linestyle='--', 
-                      label=f'Meta ({SEGMENTATION_CONFIG["TARGETS"]["IOU"]})', alpha=0.7)
+                      label=f'Target ({SEGMENTATION_CONFIG["TARGETS"]["IOU"]})', alpha=0.7)
     axes[1, 0].set_title('IoU Score')
-    axes[1, 0].set_xlabel('Época')
+    axes[1, 0].set_xlabel('Epoch')
     axes[1, 0].set_ylabel('IoU')
     axes[1, 0].legend()
     axes[1, 0].grid(True, alpha=0.3)
     
-    # Learning Rate (se disponível)
+    # Learning Rate 
     if 'learning_rates' in history:
         axes[1, 1].plot(epochs, history['learning_rates'], 'g-', linewidth=2)
         axes[1, 1].set_title('Learning Rate Schedule')
-        axes[1, 1].set_xlabel('Época')
+        axes[1, 1].set_xlabel('Epoch')
         axes[1, 1].set_ylabel('Learning Rate')
         axes[1, 1].set_yscale('log')
         axes[1, 1].grid(True, alpha=0.3)
@@ -147,7 +147,7 @@ def create_metrics_visualization_segmentation(history: Dict, save_path: Path = N
         axes[1, 1].set_ylim(0, 1)
         axes[1, 1].axis('off')
     
-    plt.suptitle('Enhanced U-Net - Evolução das Métricas', fontsize=16, fontweight='bold')
+    plt.suptitle('Enhanced U-Net - Metrics Evolution', fontsize=16, fontweight='bold')
     plt.tight_layout()
     
     if save_path:
@@ -158,49 +158,49 @@ def create_metrics_visualization_segmentation(history: Dict, save_path: Path = N
 def create_comprehensive_training_analysis_segmentation(history: Dict, 
                                                       final_metrics: Dict,
                                                       save_path: Path = None):
-    """Cria análise completa do treinamento como na fig03_training_curves_complete.jpg"""
+    """Creates complete training analysis similar to fig03_training_curves_complete.jpg"""
     
     epochs = list(range(1, len(history['train_loss']) + 1))
     
     fig, axes = plt.subplots(2, 3, figsize=(20, 12))
     
-    # 1. Evolução da Loss Function
+    # 1. Loss Function Evolution
     axes[0, 0].plot(epochs, history['train_loss'], 'b-', label='Training Loss', linewidth=2)
     axes[0, 0].plot(epochs, history['val_loss'], 'r-', label='Validation Loss', linewidth=2)
     # Assuming best epoch is known or can be derived from history
     best_epoch_idx = np.argmax(history['val_dice'])
     best_epoch = epochs[best_epoch_idx]
-    axes[0, 0].axvline(x=best_epoch, color='gray', linestyle='--', alpha=0.7, label=f'Melhor Época ({best_epoch})')
-    axes[0, 0].set_title('Evolução da Loss Function', fontsize=12, fontweight='bold')
-    axes[0, 0].set_xlabel('Época')
+    axes[0, 0].axvline(x=best_epoch, color='gray', linestyle='--', alpha=0.7, label=f'Best Epoch ({best_epoch})')
+    axes[0, 0].set_title('Loss Function Evolution', fontsize=12, fontweight='bold')
+    axes[0, 0].set_xlabel('Epoch')
     axes[0, 0].set_ylabel('Combined Loss')
     axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
     
-    # 2. Evolução do Dice Score
+    # 2. Dice Score Evolution
     axes[0, 1].plot(epochs, history['train_dice'], 'b-', label='Training Dice', linewidth=2)
     axes[0, 1].plot(epochs, history['val_dice'], 'r-', label='Validation Dice', linewidth=2)
     axes[0, 1].axhline(y=SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE'], color='orange', linestyle=':', alpha=0.8, 
-                      label=f'Meta TCC ({SEGMENTATION_CONFIG["TARGETS"]["DICE_SCORE"]})')
+                      label=f'Target ({SEGMENTATION_CONFIG["TARGETS"]["DICE_SCORE"]})')
     axes[0, 1].axvline(x=best_epoch, color='gray', linestyle='--', alpha=0.7, 
-                      label=f'Melhor Época ({best_epoch})')
+                      label=f'Best Epoch ({best_epoch})')
     axes[0, 1].axhline(y=final_metrics['dice_score'], color='green', linestyle='--', alpha=0.8, 
-                      label=f'Melhor Resultado ({final_metrics["dice_score"]:.4f})')
-    axes[0, 1].set_title('Evolução do Dice Score', fontsize=12, fontweight='bold')
-    axes[0, 1].set_xlabel('Época')
+                      label=f'Best Result ({final_metrics["dice_score"]:.4f})')
+    axes[0, 1].set_title('Dice Score Evolution', fontsize=12, fontweight='bold')
+    axes[0, 1].set_xlabel('Epoch')
     axes[0, 1].set_ylabel('Dice Score')
     axes[0, 1].legend()
     axes[0, 1].grid(True, alpha=0.3)
     
-    # 3. Evolução do IoU
+    # 3. IoU Evolution
     axes[1, 0].plot(epochs, history['train_iou'], 'b-', label='Training IoU', linewidth=2)
     axes[1, 0].plot(epochs, history['val_iou'], 'r-', label='Validation IoU', linewidth=2)
     axes[1, 0].axhline(y=SEGMENTATION_CONFIG['TARGETS']['IOU'], color='orange', linestyle=':', alpha=0.8, 
-                      label=f'Meta IoU ({SEGMENTATION_CONFIG["TARGETS"]["IOU"]})')
+                      label=f'Target IoU ({SEGMENTATION_CONFIG["TARGETS"]["IOU"]})')
     axes[1, 0].axvline(x=best_epoch, color='gray', linestyle='--', alpha=0.7, 
-                      label=f'Melhor Época ({best_epoch})')
-    axes[1, 0].set_title('Evolução do IoU', fontsize=12, fontweight='bold')
-    axes[1, 0].set_xlabel('Época')
+                      label=f'Best Epoch ({best_epoch})')
+    axes[1, 0].set_title('IoU Evolution', fontsize=12, fontweight='bold')
+    axes[1, 0].set_xlabel('Epoch')
     axes[1, 0].set_ylabel('IoU Score')
     axes[1, 0].legend()
     axes[1, 0].grid(True, alpha=0.3)
@@ -209,49 +209,48 @@ def create_comprehensive_training_analysis_segmentation(history: Dict,
     if 'learning_rates' in history:
         axes[1, 1].plot(epochs, history['learning_rates'], 'g-', linewidth=2)
         axes[1, 1].set_title('Learning Rate Schedule (ReduceLROnPlateau)', fontsize=12, fontweight='bold')
-        axes[1, 1].set_xlabel('Época')
+        axes[1, 1].set_xlabel('Epoch')
         axes[1, 1].set_ylabel('Learning Rate')
         axes[1, 1].set_yscale('log')
         axes[1, 1].grid(True, alpha=0.3)
     
-    # 5. Análise de Overfitting
+    # 5. Overfitting Analysis
     train_val_diff = np.array(history['val_dice']) - np.array(history['train_dice'])
     axes[0, 2].plot(epochs, train_val_diff, 'purple', linewidth=2)
     axes[0, 2].axhline(y=0.05, color='red', linestyle='--', alpha=0.7, 
                       label='Threshold Overfitting (0.05)')
-    axes[0, 2].set_title('Análise de Overfitting', fontsize=12, fontweight='bold')
-    axes[0, 2].set_xlabel('Época')
+    axes[0, 2].set_title('Overfitting Analysis', fontsize=12, fontweight='bold')
+    axes[0, 2].set_xlabel('Epoch')
     axes[0, 2].set_ylabel('Train - Val Dice')
     axes[0, 2].legend()
     axes[0, 2].grid(True, alpha=0.3)
     
-    # 6. Resumo Estatístico Completo (adaptado)
-    summary_text = f"""RESUMO DO TREINAMENTO:\n\n"
-    f"RESULTADO FINAL:\n"
-    f"• Melhor Dice Score: {final_metrics['dice_score']:.4f}\n"
-    f"• Melhor Época: {best_epoch}/{len(epochs)}\n"
-    f"• Meta TCC: {SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE']} {'✓ ATINGIDA' if final_metrics['dice_score'] >= SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE'] else '✗ NÃO ATINGIDA'}\n"
-    f"• Status: {'SUCESSO COMPLETO' if final_metrics['dice_score'] >= SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE'] else 'PROGRESSO'}\n\n"
-    f"PERFORMANCE FINAL:\n"
+    # 6. Complete Statistical Summary
+    summary_text = f"""TRAINING SUMMARY:\n\n"
+    f"FINAL RESULT:\n"
+    f"• Best Dice Score: {final_metrics['dice_score']:.4f}\n"
+    f"• Best Epoch: {best_epoch}/{len(epochs)}\n"
+    f"• Target: {SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE']} {'✓ MET' if final_metrics['dice_score'] >= SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE'] else '✗ NOT MET'}\n"
+    f"• Status: {'COMPLETE SUCCESS' if final_metrics['dice_score'] >= SEGMENTATION_CONFIG['TARGETS']['DICE_SCORE'] else 'IN PROGRESS'}\n\n"
+    f"FINAL PERFORMANCE:\n"
     f"• Training Dice: {history['train_dice'][-1]:.4f}\n"
     f"• Validation Dice: {history['val_dice'][-1]:.4f}\n"
-    f"• Gap Train/Val: {abs(history['train_dice'][-1] - history['val_dice'][-1]):.4f}\n"
-    f"• IoU final: {final_metrics['iou']:.4f}\n"
-    f"• Loss final: {final_metrics['total_loss']:.4f}\n\n"
-    f"CONFIGURAÇÕES ÓTIMAS:\n"
+    f"• Train/Val Gap: {abs(history['train_dice'][-1] - history['val_dice'][-1]):.4f}\n"
+    f"• Final IoU: {final_metrics['iou']:.4f}\n"
+    f"• Final Loss: {final_metrics['total_loss']:.4f}\n\n"
+    f"OPTIMAL CONFIGURATIONS:\n"
     f"✓ Combined Loss Function\n"
     f"✓ Learning Rate: {SEGMENTATION_CONFIG['TRAINING']['LEARNING_RATE']}\n"
     f"✓ Batch Size: {SEGMENTATION_CONFIG['TRAINING']['BATCH_SIZE']}\n"
-    f"✓ Dropout: 0.5 (se aplicável)\n"
     f"✓ Early Stopping: {SEGMENTATION_CONFIG['TRAINING']['EARLY_STOPPING_PATIENCE']}\n"
     f"""    
     axes[1, 2].text(0.05, 0.95, summary_text, transform=axes[1, 2].transAxes,
                    fontsize=9, verticalalignment='top', fontfamily='monospace',
                    bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgreen', alpha=0.8))
-    axes[1, 2].set_title('Resumo Estatístico Completo', fontsize=12, fontweight='bold')
+    axes[1, 2].set_title('Complete Statistical Summary', fontsize=12, fontweight='bold')
     axes[1, 2].axis('off')
     
-    plt.suptitle('Enhanced U-Net: Análise Completa do Processo de Treinamento', 
+    plt.suptitle('Enhanced U-Net: Complete Training Process Analysis', 
                  fontsize=16, fontweight='bold')
     plt.tight_layout()
     
@@ -260,15 +259,15 @@ def create_comprehensive_training_analysis_segmentation(history: Dict,
     
     plt.close(fig)
 
-def create_architecture_analysis_complete_segmentation(model: torch.nn.Module, save_path: Path = None):
-    """Cria análise arquitetural completa como na fig02_architecture_analysis.jpg"""
+def create_architecture_analysis_complete_segmentation(model: torch.nn.Module, val_probs=None, val_targets=None, save_path: Path = None):
+    """Creates complete architecture analysis analysis like fig02_architecture_analysis.jpg"""
     
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 12))
     
-    # 1. Enhanced U-Net Architecture Diagram (Simplificado)
+    # 1. Enhanced U-Net Architecture Diagram (Simplified)
     ax1.text(0.5, 0.9, 'Enhanced U-Net Architecture', ha='center', fontsize=16, fontweight='bold')
     
-    # Desenhar diagrama da arquitetura (representação abstrata)
+    # Architecture abstract representation
     levels = SEGMENTATION_CONFIG['MODEL']['FEATURES'] + [SEGMENTATION_CONFIG['MODEL']['FEATURES'][-1] * 2] + list(reversed(SEGMENTATION_CONFIG['MODEL']['FEATURES']))
     positions = np.linspace(0.1, 0.9, len(levels))
     colors = ['lightcoral'] * len(SEGMENTATION_CONFIG['MODEL']['FEATURES']) + ['red'] + ['lightgreen'] * len(SEGMENTATION_CONFIG['MODEL']['FEATURES'])
@@ -284,41 +283,63 @@ def create_architecture_analysis_complete_segmentation(model: torch.nn.Module, s
             ax1.text(pos+0.06, 0.55, arrow_style, ha='center', va='center', fontsize=12)
     
     total_params = sum(p.numel() for p in model.parameters())
-    ax1.text(0.5, 0.2, f'Input: {SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][0]}x{SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][1]}x3\nOutput: {SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][0]}x{SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][1]}x1\nParâmetros: {total_params:,}', 
+    ax1.text(0.5, 0.2, f'Input: {SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][0]}x{SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][1]}x3\nOutput: {SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][0]}x{SEGMENTATION_CONFIG["DATASET"]["IMAGE_SIZE"][1]}x1\nParameters: {total_params:,}', 
              ha='center', fontsize=12, bbox=dict(boxstyle='round', facecolor='lightyellow'))
     ax1.set_xlim(0, 1)
     ax1.set_ylim(0, 1)
     ax1.axis('off')
     
-    # 2. Distribuição de Parâmetros por Componente (Estimativa)
-    # Estes valores são aproximados e devem ser calculados com base na arquitetura real se necessário
+    # 2. Parameters distribution (Estimation)
     components = ['Encoder', 'Bottleneck', 'Decoder', 'Final Conv']
-    # Exemplo de distribuição, ajuste conforme a arquitetura real do modelo
     params_dist = [total_params * 0.3, total_params * 0.4, total_params * 0.25, total_params * 0.05]
     
     ax2.bar(range(len(components)), params_dist, color='skyblue', alpha=0.7)
-    ax2.set_title('Distribuição de Parâmetros por Componente', fontsize=14, fontweight='bold')
-    ax2.set_xlabel('Componentes da Arquitetura')
-    ax2.set_ylabel('Número de Parâmetros')
+    ax2.set_title('Parameter Distribution per Component', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Architecture Components')
+    ax2.set_ylabel('Number of Parameters')
     ax2.set_xticks(range(len(components)))
     ax2.set_xticklabels(components, rotation=45, ha='right')
     ax2.grid(True, alpha=0.3)
     
-    # 3. Curva ROC (Exemplo, pois requer dados de teste)
-    ax3.text(0.5, 0.5, 'Curva ROC\n(Requer dados de teste para geração)', 
-             ha='center', va='center', transform=ax3.transAxes,
-             fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
-    ax3.set_title('Curva ROC', fontsize=14, fontweight='bold')
-    ax3.axis('off')
+    from sklearn.metrics import roc_curve, auc, precision_recall_curve
+    # 3. ROC Curve
+    if val_probs is not None and val_targets is not None:
+        fpr, tpr, _ = roc_curve(val_targets, val_probs)
+        roc_auc = auc(fpr, tpr)
+        ax3.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.4f})')
+        ax3.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        ax3.set_xlim([0.0, 1.0])
+        ax3.set_ylim([0.0, 1.05])
+        ax3.set_xlabel('False Positive Rate')
+        ax3.set_ylabel('True Positive Rate')
+        ax3.set_title('Receiver Operating Characteristic', fontweight='bold')
+        ax3.legend(loc="lower right")
+        ax3.grid(True, alpha=0.3)
+    else:
+        ax3.text(0.5, 0.5, 'ROC Curve\n(Requires test data to generate)', 
+                 ha='center', va='center', transform=ax3.transAxes,
+                 fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
+        ax3.set_title('ROC Curve', fontsize=14, fontweight='bold')
+        ax3.axis('off')
     
-    # 4. Curva Precision-Recall (Exemplo, pois requer dados de teste)
-    ax4.text(0.5, 0.5, 'Curva Precision-Recall\n(Requer dados de teste para geração)', 
-             ha='center', va='center', transform=ax4.transAxes,
-             fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
-    ax4.set_title('Curva Precision-Recall', fontsize=14, fontweight='bold')
-    ax4.axis('off')
+    # 4. Precision-Recall Curve
+    if val_probs is not None and val_targets is not None:
+        precision, recall, _ = precision_recall_curve(val_targets, val_probs)
+        pr_auc = auc(recall, precision)
+        ax4.plot(recall, precision, color='purple', lw=2, label=f'PR curve (AUC = {pr_auc:.4f})')
+        ax4.set_xlabel('Recall')
+        ax4.set_ylabel('Precision')
+        ax4.set_title('Precision-Recall Curve', fontweight='bold')
+        ax4.legend(loc="lower left")
+        ax4.grid(True, alpha=0.3)
+    else:
+        ax4.text(0.5, 0.5, 'Precision-Recall Curve\n(Requires test data to generate)', 
+                 ha='center', va='center', transform=ax4.transAxes,
+                 fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
+        ax4.set_title('Precision-Recall Curve', fontsize=14, fontweight='bold')
+        ax4.axis('off')
     
-    plt.suptitle('Enhanced U-Net: Análise Arquitetural e de Performance', 
+    plt.suptitle('Enhanced U-Net: Architecture and Performance Analysis', 
                  fontsize=16, fontweight='bold')
     plt.tight_layout()
     
@@ -332,11 +353,11 @@ def create_sample_predictions_plot_segmentation(model: torch.nn.Module,
                                                   device: torch.device,
                                                   num_samples: int = 3,
                                                   save_path: Path = None):
-    """Cria comparação visual Original vs GT vs Predição para segmentação."""
+    """Creates a visual comparison: Original vs GT vs Prediction for segmentation."""
     
     model.eval()
     
-    # Selecionar amostras aleatórias
+    # Select random samples
     indices = np.random.choice(len(dataset), num_samples, replace=False)
     
     fig, axes = plt.subplots(num_samples, 3, figsize=(15, 5*num_samples))
@@ -346,13 +367,13 @@ def create_sample_predictions_plot_segmentation(model: torch.nn.Module,
     
     with torch.no_grad():
         for i, idx in enumerate(indices):
-            # Carregar amostra
+            # Load sample
             image, gt_mask = dataset[idx]
             
-            # Desnormalizar imagem para visualização
+            # Denormalize image for visualization
             if isinstance(image, torch.Tensor):
                 if image.shape[0] == 3:  # RGB
-                    # Desnormalizar ImageNet
+                    # Denormalize ImageNet
                     mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
                     std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
                     image_vis = image * std + mean
@@ -372,7 +393,7 @@ def create_sample_predictions_plot_segmentation(model: torch.nn.Module,
             if isinstance(gt_mask, torch.Tensor):
                 gt_mask = gt_mask.squeeze().numpy()
             
-            # Plotar
+            # Plot
             # Original
             axes[i, 0].imshow(image_vis)
             axes[i, 0].set_title(f'Sample {idx}: Original Image')
@@ -383,7 +404,7 @@ def create_sample_predictions_plot_segmentation(model: torch.nn.Module,
             axes[i, 1].set_title(f'Sample {idx}: Ground Truth')
             axes[i, 1].axis('off')
             
-            # Predição
+            # Prediction
             axes[i, 2].imshow(pred_mask, cmap='gray')
             axes[i, 2].set_title(f'Sample {idx}: Prediction')
             axes[i, 2].axis('off')
@@ -399,7 +420,7 @@ def create_sample_predictions_plot_segmentation(model: torch.nn.Module,
 
 def create_metrics_boxplot_segmentation(metrics_per_image: List[Dict[str, float]], 
                                         save_path: Path = None):
-    """Cria boxplot de distribuição de métricas por imagem para segmentação."""
+    """Creates a boxplot of the metrics distribution per image for segmentation."""
     
     # Converter para DataFrame
     import pandas as pd
@@ -435,7 +456,7 @@ def create_metrics_boxplot_segmentation(metrics_per_image: List[Dict[str, float]
     plt.close(fig)
 
 def create_confusion_matrix_plot_av(y_true, y_pred, class_names=['Background', 'Artery', 'Vein'], save_path: Path = None):
-    """Cria e salva a matriz de confusão para classificação A/V."""
+    """Creates and saves the confusion matrix for A/V classification."""
     cm = confusion_matrix(y_true.flatten(), y_pred.flatten(), labels=np.arange(len(class_names)))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -447,7 +468,7 @@ def create_confusion_matrix_plot_av(y_true, y_pred, class_names=['Background', '
     plt.close(fig)
 
 def create_precision_recall_curve_av(y_true_binary, y_scores_clipped, save_path: Path = None):
-    """Cria e salva a curva Precision-Recall para classificação A/V."""
+    """Creates and saves the Precision-Recall curve for A/V classification."""
     from sklearn.metrics import precision_recall_curve, auc
     
     try:
@@ -473,12 +494,12 @@ def create_precision_recall_curve_av(y_true_binary, y_scores_clipped, save_path:
         plt.close(fig)
         
     except Exception as e:
-        print(f"***x*** Erro ao criar curva Precision-Recall: {e}")
-        print("📊 Gerando plot alternativo...")
+        print(f"***x*** Error creating Precision-Recall curve: {e}")
+        print("📊 Generating alternative plot...")
         
-        # Plot alternativo simples
+        # Simple alternative plot
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-        ax.text(0.5, 0.5, f'Precision-Recall Curve\n(Erro na geração)\n\nDados disponíveis:\n• Amostras: {len(y_true_binary)}\n• Scores range: [{y_scores_clipped.min():.3f}, {y_scores_clipped.max():.3f}]', 
+        ax.text(0.5, 0.5, f'Precision-Recall Curve\n(Error during generation)\n\nAvailable data:\n• Samples: {len(y_true_binary)}\n• Scores range: [{y_scores_clipped.min():.3f}, {y_scores_clipped.max():.3f}]', 
                 ha='center', va='center', transform=ax.transAxes,
                 bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.8))
         ax.set_title('Precision-Recall Curve - Enhanced Multi-Dataset AV-Net', fontsize=14, fontweight='bold')
@@ -495,11 +516,11 @@ def create_sample_predictions_plot_av(model: torch.nn.Module,
                                       device: torch.device,
                                       num_samples: int = 3,
                                       save_path: Path = None):
-    """Cria comparação visual Original vs GT vs Predição para classificação A/V."""
+    """Creates visual comparison Original vs GT vs Prediction for A/V classification."""
     
     model.eval()
     
-    # Selecionar amostras aleatórias
+    # Select random samples
     indices = np.random.choice(len(dataset), num_samples, replace=False)
     
     fig, axes = plt.subplots(num_samples, 3, figsize=(15, 5*num_samples))
@@ -553,7 +574,7 @@ def create_sample_predictions_plot_av(model: torch.nn.Module,
             axes[i, 1].set_title(f'Sample {idx}: Ground Truth')
             axes[i, 1].axis('off')
             
-            # Predição
+            # Prediction
             axes[i, 2].imshow(pred_mask, cmap=av_cmap, vmin=0, vmax=2)
             axes[i, 2].set_title(f'Sample {idx}: Prediction')
             axes[i, 2].axis('off')
@@ -568,20 +589,20 @@ def create_sample_predictions_plot_av(model: torch.nn.Module,
     plt.close(fig)
 
 def create_final_consolidated_analysis_av(final_metrics: Dict, save_path: Path = None):
-    """Cria uma análise consolidada final para classificação A/V."""
+    """Creates a final consolidated analysis for A/V classification."""
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
     
-    summary_text = f"""ANÁLISE CONSOLIDADA FINAL (A/V Classification):\n\n"
-    f"RESULTADOS GERAIS:\n"
+    summary_text = f"""CONSOLIDATED FINAL ANALYSIS (A/V Classification):\n\n"
+    f"OVERALL RESULTS:\n"
     f"• Macro F1-Score: {final_metrics.get('f1', 0.0):.4f}\n"
     f"• Accuracy: {final_metrics.get('accuracy', 0.0):.4f}\n\n"
-    f"F1-SCORE POR CLASSE:\n"
+    f"F1-SCORE PER CLASS:\n"
     f"• Background F1: {final_metrics.get('bg_f1', 0.0):.4f}\n"
     f"• Artery F1: {final_metrics.get('artery_f1', 0.0):.4f}\n"
     f"• Vein F1: {final_metrics.get('vein_f1', 0.0):.4f}\n\n"
-    f"METAS TCC (AV Classification):\n"
-    f"• Macro F1: {AV_CLASSIFICATION_CONFIG['TARGETS']['MACRO_F1']} {'✓ ATINGIDA' if final_metrics.get('f1', 0.0) >= AV_CLASSIFICATION_CONFIG['TARGETS']['MACRO_F1'] else '✗ NÃO ATINGIDA'}\n"
-    f"• Accuracy: {AV_CLASSIFICATION_CONFIG['TARGETS']['ACCURACY']} {'✓ ATINGIDA' if final_metrics.get('accuracy', 0.0) >= AV_CLASSIFICATION_CONFIG['TARGETS']['ACCURACY'] else '✗ NÃO ATINGIDA'}\n"
+    f"TARGETS (AV Classification):\n"
+    f"• Macro F1: {AV_CLASSIFICATION_CONFIG['TARGETS']['MACRO_F1']} {'✓ MET' if final_metrics.get('f1', 0.0) >= AV_CLASSIFICATION_CONFIG['TARGETS']['MACRO_F1'] else '✗ NOT MET'}\n"
+    f"• Accuracy: {AV_CLASSIFICATION_CONFIG['TARGETS']['ACCURACY']} {'✓ MET' if final_metrics.get('accuracy', 0.0) >= AV_CLASSIFICATION_CONFIG['TARGETS']['ACCURACY'] else '✗ NOT MET'}\n"
     f"""
     
     ax.text(0.05, 0.95, summary_text, transform=ax.transAxes,
@@ -598,9 +619,9 @@ def create_final_consolidated_analysis_av(final_metrics: Dict, save_path: Path =
     plt.close(fig)
 
 def create_professional_comparison_av(val_predictions, val_targets, num_samples=6, save_path: Path = None):
-    """Criar visualização profissional estilo paper científico para classificação A/V."""
+    """Creates a professional, scientific paper-style visual comparison for A/V classification."""
     
-    # Configurar estilo científico
+    # Configure scientific style
     plt.style.use('default')
     plt.rcParams.update({
         'font.size': 10,
@@ -609,18 +630,18 @@ def create_professional_comparison_av(val_predictions, val_targets, num_samples=
         'axes.labelsize': 10
     })
     
-    # Colormap para A/V (como na imagem científica)
+    # Colormap for A/V (as in scientific image)
     from matplotlib.colors import ListedColormap
     colors = ['#000000', '#FF0000', '#0080FF']  # Black, Red, Blue
     av_cmap = ListedColormap(colors)
     
-    # Selecionar amostras
+    # Select samples
     sample_indices = list(range(min(num_samples, len(val_predictions))))
     
-    # Criar figura com grid profissional
+    # Create figure with professional grid
     fig = plt.figure(figsize=(16, 4 * len(sample_indices)))
     
-    # Título principal
+    # Main title
     fig.suptitle('Enhanced A/V Classification - Test Results\nMulti-Dataset Model', 
                  fontsize=16, fontweight='bold', y=0.95)
     
