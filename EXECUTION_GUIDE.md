@@ -1,30 +1,38 @@
-# 🚀 Guia de Execução End-to-End (Do Zero ao Pipeline)
+# 🚀 End-to-End Execution Guide (From Zero to Pipeline)
 
-Este guia descreve o passo a passo completo para rodar o projeto desde o **Passo 0** (sem nenhum modelo treinado) até a geração de *métricas, inferências e predições integradas*. Toda a arquitetura foi modularizada em Python nativo (`src/`) para permitir execuções em terminais e automações MLOps, além de centralizar as visualizações na pasta `notebooks/`.
+This guide covers the full path from **Step 0** (no trained model at all) to generating
+*metrics, inference, and integrated predictions*. The whole architecture is modularized in
+native Python (`src/`) to allow terminal/MLOps automation, with visualizations centralized
+under `notebooks/`.
 
 ---
 
-## 📦 Passo 0: Preparação Inicial
+## 📦 Step 0: Initial Setup
 
-### 1. Ambiente e Dependências
-Certifique-se de que você está num ambiente virtual ativo (venv ou conda) com as bibliotecas essenciais instaladas, em especial o PyTorch.
+### 1. Environment and dependencies
+Make sure you're inside an active virtual environment (venv or conda) with the essential
+libraries installed, PyTorch in particular.
 
 ```bash
-# Se utilizar GPU NVIDIA (CUDA):
+# NVIDIA GPU (CUDA):
 pip install -r requirements.txt
 
-# Se utilizar GPU AMD (ROCm):
+# AMD GPU (ROCm):
 pip install -r requirements-rocm.txt
 ```
 
-*(Nota: O PyTorch e o Torchvision possuem compilações específicas para parear com o hardware. Utilize os arquivos acima para puxar os pesos das builds corretas (CUDA vs. ROCm).*
+*(PyTorch/torchvision have hardware-specific builds — use the files above to pull the
+correct wheels for your GPU. If you're on an AMD card, read
+[`docs/GPU_ROCM_RX6800XT.md`](docs/GPU_ROCM_RX6800XT.md) first — it documents a real,
+reproducible GPU thermal-runaway issue and its fix, plus the exact driver setup that works.)*
 
-### 2. Disposição dos Dados (Datasets)
-Como as imagens pesam >130MB, elas não ficam no GitHub. Você precisa fazer o download do arquivo `data.zip` hospedado externamente pelo autor:
-1. **Baixe o arquivo `data.zip` em:** [Google Drive - Retinal AVR Data](https://drive.google.com/file/d/1VUNfJkRd8V9RmR--NlnI_RZg84Ioz-E8/view?usp=sharing)
-2. **Extraia o conteúdo** diretamente na raiz do projeto, para que a pasta `data/` seja recriada com as subpastas esperadas pelo sistema.
+### 2. Dataset layout
+Images are >130MB, so they don't live on GitHub. Download the author's `data.zip`:
+1. **Get `data.zip` from:** [Google Drive - Retinal AVR Data](https://drive.google.com/file/d/1VUNfJkRd8V9RmR--NlnI_RZg84Ioz-E8/view?usp=sharing)
+2. **Extract it** directly into the project root, so `data/` is recreated with the
+   subfolders the system expects.
 
-Exemplo da estrutura resultante para o treino de Segmentação com o DRIVE:
+Resulting structure for segmentation training on DRIVE:
 
 ```text
 data/
@@ -37,119 +45,153 @@ data/
         └── 1st_manual/
 ```
 
-*(Faça o mesmo para os datasets de classificação A/V - IOSTAR, RITE, LES-AV).*
+*(Do the same for the A/V classification datasets — IOSTAR, RITE, LES-AV.)*
 
-### 3. Imagens originais do IOSTAR (necessário para o disco óptico)
+### 3. Original IOSTAR images (needed for the optic disc model)
 
-O `data.zip` acima só inclui `GT/`, `AV_GT/`, `mask/` e `mask_OD/` do IOSTAR — faltam as
-30 imagens de fundo originais (`image/*.jpg`), que são a única fonte com máscara de disco
-óptico (`mask_OD/`) baixada neste projeto. Sem elas, `--train_od` e a avaliação do
-detector de disco óptico não funcionam. Coloque-as em `data/IOSTAR/image/`.
+The `data.zip` above only includes IOSTAR's `GT/`, `AV_GT/`, `mask/`, and `mask_OD/` —
+missing the 30 original fundus images (`image/*.jpg`), which is the only downloaded source
+with optic disc mask ground truth (`mask_OD/`). Without them, `--train_od` and optic disc
+detector evaluation won't work. Place them in `data/IOSTAR/image/`.
 
 ---
 
-## 🏋️‍♂️ Passo 1: Treinamento dos Modelos (Codebase)
+## 🏋️‍♂️ Step 1: Model Training
 
-Todo o treinamento dos modelos ocorre através do nosso Entry Point central: o `main.py`. Ele consome as funções de treinamento (`src/training/`) e passa por todo o split, carregamento e logs, utilizando os hyperparâmetros de `src/config/settings.py`.
+All training goes through the central entrypoint, `main.py`. It drives the training
+functions (`src/training/`) through the full split/loading/logging flow, using the
+hyperparameters in `src/config/settings.py`.
 
-### A) Treinar o Modelo de Segmentação (Enhanced U-Net)
-Para iniciar o treinamento da rede neural responsável por extrair a árvore vascular das imagens (Segmentação):
+### A) Train the segmentation model (Enhanced U-Net)
+To train the network responsible for extracting the vascular tree (segmentation):
 
 ```bash
 python main.py --train_seg
 ```
-- **O que acontece**: O dataloader processará as imagens `*.tif` aplicando transformações geométricas e de cor (CLAHE), invocará a `EnhancedUNet`, e salvará o arquivo de peso `.pth` na pasta destino mapeada (ex: `models/segmentation/best_model.pth`).
-- **Logs e Métricas**: Os scores de Loss e a evolução (Dice loss, epochs, etc) serão impressos rodada a rodada no terminal.
+- **What happens**: the dataloader processes `*.tif` images with geometric/color
+  transforms (CLAHE), feeds `EnhancedUNet`, and saves the checkpoint under
+  `models/segmentation/run_<timestamp>/model_epoch<NNN>_dice_<score>.pth`.
+- **Logs/metrics**: loss and metric evolution (Dice, epochs, etc.) print every round in the
+  terminal, and are also written to `logs/segmentation/run_<timestamp>/metrics_*.csv`.
 
-### B) Treinar o Modelo de Classificação A/V
-Para iniciar o processamento da arquitetura complexa A/V:
+### B) Train the A/V classification model
+To train the more complex A/V architecture:
 
 ```bash
 python main.py --train_av
 ```
-- **O que acontece**: Ele utilizará os datasets indicados no `settings.py` para alimentar o `EnhancedMultiDatasetAVNet`.
-- O peso final será salvo (ex: `models/av_classification/best_avnet.pth`).
+- **What happens**: uses the datasets configured in `settings.py` to feed
+  `EnhancedMultiDatasetAVNet`.
+- Final weights saved under `models/av_classification/run_<timestamp>/`.
 
-### C) Treinar o Detector do Disco Óptico
+### C) Train the optic disc detector
 
-Necessário para o cálculo correto da Zona B peripapilar (ver seção "Correção do disco
-óptico" abaixo). Dataset pequeno (~30 imagens do IOSTAR), então o treino é rápido mesmo
-sem GPU:
+Needed for correctly computing the peripapillary Zone B (see "Optic disc fix" below).
+Small dataset (~30 IOSTAR images), so training is fast even without a top-tier GPU:
 
 ```bash
 python main.py --train_od
 ```
-- **O que acontece**: Reaproveita a arquitetura `EnhancedUNet` (mesma da segmentação de
-  vasos, trocando só o checkpoint) para segmentar o disco óptico a partir de
-  `data/IOSTAR/image/` + `data/IOSTAR/mask_OD/`.
-- O peso final será salvo em `models/optic_disc/run_<timestamp>/model_dice_*.pth`.
-- **Sem esse checkpoint treinado**, o pipeline cai automaticamente para uma heurística de
-  visão computacional clássica (região mais clara do canal vermelho + maior componente
-  conexo) — funciona, mas é bem menos precisa, principalmente no IOSTAR (imagens SLO,
-  bem diferentes das retinografias comuns em que a heurística foi pensada).
+- **What happens**: reuses the `EnhancedUNet` architecture (same as vessel segmentation,
+  just a different checkpoint) to segment the optic disc from `data/IOSTAR/image/` +
+  `data/IOSTAR/mask_OD/`.
+- Final weights saved under `models/optic_disc/run_<timestamp>/model_epoch<NNN>_dice_<score>.pth`.
+- **Without a trained checkpoint**, the pipeline automatically falls back to a classical
+  computer-vision heuristic (brightest region in the red channel + largest connected
+  component) — it works, but is meaningfully less accurate, especially on IOSTAR (SLO
+  images, quite different from the consumer fundus photos the heuristic was designed for).
+- ⚠️ **If you're on an AMD GPU**, read
+  [`docs/GPU_ROCM_RX6800XT.md`](docs/GPU_ROCM_RX6800XT.md) before running this specific
+  command — this is the training workload that reproduced a real GPU thermal-runaway
+  issue during development, and the doc has the pre-flight checklist that avoids it.
 
-### D) Ajuste Dinâmico de Hiperparâmetros (Opcional)
-Você notará no `main.py` que não é mais preciso editar o código-fonte manualmente para trocar parâmetros corriqueiros de treinamento. Basta usar as tags CLI:
+### D) Dynamic hyperparameter overrides (optional)
+No need to edit `settings.py` by hand for routine changes — use CLI flags:
 
 ```bash
 python main.py --train_seg --epochs 250 --batch_size 8 --lr 0.0001
 ```
 
-Opcionalmente, crie um arquivo `experimento_1.yaml` para sobrescrever variáveis complexas de `settings.py` e rode:
+Optionally, create an `experimento_1.yaml` file to override more complex `settings.py`
+variables and run:
 ```bash
 python main.py --train_av --config experimento_1.yaml
 ```
 
 ---
 
-## 📊 Passo 2: Geração de Estatísticas e Testes Isolados
+## 📊 Step 2: Sanity Checks
 
-Caso você queira atestar o *forward/backward* ou realizar um "Dry-Run" nos modelos com tensores mockados para averiguação de sintaxe de máquina/memória da GPU sem carregar todo o arquivo de dados:
+To verify the forward/backward pass ("dry run") with mocked tensors — checking machine/GPU
+memory syntax without loading the full dataset:
 
 ```bash
 python tests/sanity_check.py
+python tests/test_avr_calculator.py   # Zone B geometry + Knudtson formulas, no GPU needed
 ```
 
-Esse script isolado garante que a arquitetura dos PyTorch Models (`src/models/*`) compila matematicamente com matrizes preenchidas zero/um antes de comprometer horas de processamento.
+This isolated script confirms the PyTorch model architectures (`src/models/*`) compile
+correctly against zero/one-filled tensors before committing hours of real training.
 
 ---
 
-## 🧠 Passo 3: Avaliação e Unified Pipeline (Inferência e Gráficos)
+## 🧠 Step 3: Evaluation and the Integrated Pipeline (Inference & Plots)
 
-Uma vez que as pastas sob `models/` possuam os pesos treinados `.pth`, o pipeline está livre para realizar predições do mundo real, empilhar predições sobrepostas e plotar gráficos. 
+Once `models/` holds trained `.pth` checkpoints, the pipeline can run real-world
+predictions, overlay them, and plot the results.
 
-Este passo pode ser feito individualmente por imagem via terminal:
+### CLI — single image
 ```bash
 python main.py --run_pipeline "data/drive/test/images/01_test.tif"
 ```
-O resultado inclui `avr`, `crae`, `crve`, `risk_level`, e também
-`optic_disc_center`/`optic_disc_radius`/`optic_disc_method` (qual método localizou o
-disco óptico: `TRAINED_MODEL`, `CV_BRIGHTEST_REGION` ou, só em último caso,
+The result includes `avr`, `crae`, `crve`, `risk_level`, and also
+`optic_disc_center`/`optic_disc_radius`/`optic_disc_method` (which method localized the
+disc: `TRAINED_MODEL`, `CV_BRIGHTEST_REGION`, or, only as a last resort,
 `FALLBACK_IMAGE_CENTER`).
 
-### Correção do disco óptico (Zona B peripapilar)
+### HTTP API
+```bash
+pip install -r requirements-api.txt
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+curl -F "image=@data/DRIVE/test/images/01_test.tif" http://localhost:8000/analyze
+```
 
-O TCC original (seção "Região de Interesse (ROI Peripapilar)") documentava uma limitação:
-sem detecção automática de papila, o centro do disco óptico era estimado como o centro
-geométrico da imagem, e o raio como 15% da menor dimensão — uma simplificação que não é
-clinicamente válida (o disco óptico não fica no centro da retinografia). O
-`src/pipeline/optic_disc.py` substitui isso por detecção real, em ordem de preferência:
+### Web frontend
+```bash
+cd frontend
+npm install
+npm run dev   # opens on http://localhost:3000, calls the API above
+```
 
-1. Modelo treinado (`--train_od`) sobre `data/IOSTAR/mask_OD`.
-2. Heurística de CV clássico (região mais clara do canal vermelho + maior componente
-   conexo + círculo mínimo envolvente) — sempre disponível, sem treino.
-3. Só se nada funcionar: o antigo centro-da-imagem, agora sempre logado explicitamente
-   (nunca mais silencioso).
+### Optic disc fix (peripapillary Zone B)
 
-### Visualizações Interativas, Relatórios e Gráficos (Via Jupyter Notebook)
-A análise profunda dos resultados foi transferida com exclusividade e controle visual unificado para o notebook mestre:
+The originally submitted thesis (section "Região de Interesse (ROI Peripapilar)")
+documented a known limitation: without automatic optic disc detection, the disc center was
+estimated as the image's geometric center, and its radius as 15% of the smaller image
+dimension — a simplification that is not clinically valid (the optic disc is not centered
+in a fundus photograph). `src/pipeline/optic_disc.py` replaces this with real detection, in
+order of preference:
 
-1. Inicie o Servidor Jupyter:
+1. Trained model (`--train_od`) fit on `data/IOSTAR/mask_OD`.
+2. Classical CV heuristic (brightest region in the red channel + largest connected
+   component + minimum enclosing circle) — always available, no training required.
+3. Only if nothing else works: the old image-center heuristic, now always logged
+   explicitly (never silent).
+
+See [`docs/METRICS.md`](docs/METRICS.md) for the before/after accuracy numbers.
+
+### Interactive visualizations and reports (Jupyter notebook)
+Deep result analysis and unified visual control live in the master notebook:
+
+1. Start Jupyter:
    ```bash
    jupyter notebook notebooks/00_Unified_Master_Pipeline.ipynb
    ```
-2. **Dentro do Notebook:**
-   - Execute a Célula 1 & 2 para invocar o Backend Modular `ScientificAVRPipeline()`.
-   - Você pode passar lotes numéricos de teste ou caminhos de imagens diretos.
-   - O objeto Pipeline retornará com dicionários detalhando o tempo de inferência (`inference_time_ms`), a matriz de erro (`mask`), e permitirá plotar relatórios médicos colorizados lado-a-lado usando `matplotlib`. Todo o *spaghetti code* de treino está isolado longe da sua visão iterativa.
-3. Este é o ambiente principal para você expor na sua Defesa do TCC, gerando relatórios precisos do modelo treinado através do motor Python.
+2. **Inside the notebook:**
+   - Run Cell 1 & 2 to spin up the modular backend, `ScientificAVRPipeline()`.
+   - Pass batches of test images or direct image paths.
+   - The pipeline object returns dicts with inference time (`inference_time_ms`), masks,
+     and lets you plot colorized side-by-side medical reports with `matplotlib`. All the
+     training "spaghetti code" is isolated away from this iterative view.
+3. This is the environment to use for a thesis defense or any presentation requiring
+   precise, reproducible model reports generated through the Python engine.
