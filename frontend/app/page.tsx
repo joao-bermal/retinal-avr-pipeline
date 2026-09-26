@@ -9,7 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const OPTIC_DISC_METHOD_LABELS: Record<AnalysisResult["optic_disc_method"], string> = {
   TRAINED_MODEL: "Trained model",
   CV_BRIGHTEST_REGION: "Classical CV heuristic",
-  FALLBACK_IMAGE_CENTER: "Fallback (image center — last resort)",
+  FALLBACK_IMAGE_CENTER: "Fallback (image center, last resort)",
 };
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -76,7 +76,7 @@ export default function Home() {
     <div className="flex-1 bg-gray-50">
       <div className="mx-auto max-w-3xl px-6 py-12">
         <header className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">👁️ Retinal AVR Analysis</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Retinal AVR Analysis</h1>
           <p className="mt-2 text-sm text-gray-600">
             Upload a fundus photograph to run the full pipeline: vessel segmentation, A/V
             classification, optic disc detection, and the scientific AVR (arteriolar-to-venular
@@ -118,7 +118,7 @@ export default function Home() {
             disabled={status === "loading"}
             className="mt-4 w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {status === "loading" ? "Analyzing…" : "Analyze"}
+            {status === "loading" ? "Analyzing..." : "Analyze"}
           </button>
         </form>
 
@@ -175,9 +175,9 @@ export default function Home() {
               </dl>
               {result.optic_disc_method === "FALLBACK_IMAGE_CENTER" && (
                 <p className="mt-3 text-xs text-amber-700">
-                  ⚠️ Neither the trained model nor the CV heuristic were confident about this
-                  image — the peripapillary Zone B fell back to the image center, which is not
-                  clinically valid. Treat this AVR value with caution.
+                  Warning: neither the trained model nor the CV heuristic were confident about
+                  this image, so the peripapillary Zone B fell back to the image center, which is
+                  not clinically valid. Treat this AVR value with caution.
                 </p>
               )}
             </section>

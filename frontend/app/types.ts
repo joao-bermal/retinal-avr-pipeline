@@ -1,5 +1,5 @@
 // Mirrors the JSON shape returned by POST /analyze in api/main.py.
-// Keep in sync manually -- there is no shared schema between the Python
+// Keep in sync manually: there is no shared schema between the Python
 // backend and this frontend.
 export interface AnalysisResult {
   image_path: string;
