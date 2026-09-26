@@ -63,7 +63,12 @@ def main():
     # Limit VRAM usage to avoid system crash
     if torch.cuda.is_available():
         torch.cuda.memory.set_per_process_memory_fraction(0.85)
-        torch.backends.cudnn.benchmark = True
+        # cudnn/MIOpen benchmark mode re-tunes the conv algorithm on the first
+        # occurrence of each new shape. On CUDA this is a quick, worthwhile
+        # trade. On this ROCm/MIOpen setup (pip wheels, no prebuilt perf-db
+        # for gfx1030) it degenerates into an exhaustive per-shape search
+        # that can take many minutes per layer -- confirmed empirically.
+        torch.backends.cudnn.benchmark = torch.version.hip is None
         gpu_name = torch.cuda.get_device_name(0)
         gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
         print(f"🖥️  GPU: {gpu_name} ({gpu_mem:.1f} GB) — VRAM limited to 85%")

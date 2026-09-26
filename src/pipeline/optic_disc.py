@@ -23,6 +23,12 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+# Mesma normalizacao ImageNet usada em SegmentationAugmentation (src/data/segmentation_dataset.py)
+# durante o treino do detector de disco optico -- precisa bater no inference, senao o
+# modelo recebe uma distribuicao de entrada completamente diferente da que viu no treino.
+_IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
 # O disco optico tipicamente ocupa entre ~5% e ~25% da menor dimensao da
 # imagem em retinografias de fundo padrao (DRIVE/RITE/IOSTAR). Usado para
 # rejeitar deteccoes implausiveis.
@@ -156,8 +162,8 @@ class OpticDiscDetector:
         min_radius, max_radius = _bounds_for_shape(image_rgb.shape)
 
         resized = cv2.resize(image_rgb, (self.image_size[1], self.image_size[0]))
-        tensor = torch.from_numpy(resized.astype(np.float32) / 255.0)
-        tensor = tensor.permute(2, 0, 1).unsqueeze(0).to(self.device)
+        normalized = (resized.astype(np.float32) / 255.0 - _IMAGENET_MEAN) / _IMAGENET_STD
+        tensor = torch.from_numpy(normalized).permute(2, 0, 1).unsqueeze(0).float().to(self.device)
 
         prob_map = self.model(tensor).squeeze().cpu().numpy()
         mask = (prob_map > self.threshold).astype(np.uint8)
