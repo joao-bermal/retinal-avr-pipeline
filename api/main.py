@@ -11,7 +11,7 @@ Local usage:
 Quick test:
     curl -F "image=@data/DRIVE/test/images/01_test.tif" http://localhost:8000/analyze
 
-No authentication, no production deployment story -- this is for local
+No authentication, no production deployment story: this is for local
 integration/development of a web application on top of the existing
 pipeline (see frontend/ for the Next.js UI that calls this).
 """
@@ -42,10 +42,10 @@ async def lifespan(app: FastAPI):
     logger.info("Loading ScientificAVRPipeline...")
     _pipeline = ScientificAVRPipeline()
     if not _pipeline.load_models():
-        # Don't crash the process -- /health and /analyze report the
+        # Don't crash the process: /health and /analyze report the
         # problem clearly instead of the server simply failing to start.
         logger.error(
-            "Failed to load pipeline models -- /analyze will fail until "
+            "Failed to load pipeline models; /analyze will fail until "
             "valid checkpoints exist under models/segmentation and "
             "models/av_classification."
         )
@@ -108,7 +108,7 @@ async def analyze(image: UploadFile = File(...)):
     if _pipeline is None or not _pipeline.is_initialized:
         raise HTTPException(
             status_code=503,
-            detail="Pipeline not initialized -- check that trained checkpoints exist under models/.",
+            detail="Pipeline not initialized. Check that trained checkpoints exist under models/.",
         )
 
     suffix = Path(image.filename or "").suffix.lower()
@@ -134,7 +134,7 @@ async def analyze(image: UploadFile = File(...)):
             detail=f"Failed to process image: {results.get('error') if results else 'no result'}",
         )
 
-    # Drop large arrays/tensors (mask, predictions) from the response -- the
+    # Drop large arrays/tensors (mask, predictions) from the response, the
     # API returns metrics and metadata, not the full binary masks.
     excluded = {"mask", "predictions"}
     response = {k: _json_safe(v) for k, v in results.items() if k not in excluded}

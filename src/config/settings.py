@@ -172,7 +172,7 @@ OPTIC_DISC_CONFIG = {
         'FEATURES': [64, 128, 256, 512],
     },
     'TRAINING': {
-        # Small dataset (~30 images) -- few epochs, aggressive early stopping.
+        # Small dataset (~30 images), so few epochs, aggressive early stopping.
         'EPOCHS': 80,
         'BATCH_SIZE': 2,
         'LEARNING_RATE': 5e-4,

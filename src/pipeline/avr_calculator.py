@@ -9,8 +9,8 @@ Ported from retinal-avr-cardiovascular-risk/notebooks/03_integrated_pipeline.ipy
 original:
 
 1. The iterative CRAE/CRVE combination now follows the canonical Knudtson
-   et al. (2003) algorithm -- at each step, combine the LARGEST with the
-   SMALLEST remaining caliber, then re-sort -- instead of the original
+   et al. (2003) algorithm: at each step, combine the LARGEST with the
+   SMALLEST remaining caliber, then re-sort, instead of the original
    notebook's naive left-fold (always index 0 + index 1).
 2. The optic disc center/radius used to build Zone B are now, in practice,
    required parameters: when omitted, the fallback to the image's geometric
@@ -51,7 +51,7 @@ class ScientificAVRCalculator:
         Args:
             image_shape: shape (H, W[, C]) of the artery/vein mask.
             optic_disc_center: (x, y) in pixels. If None, falls back to the
-                image's geometric center as a last resort (inaccurate --
+                image's geometric center as a last resort (inaccurate;
                 logs a warning). Always prefer passing the result of
                 src.pipeline.optic_disc.detect_optic_disc().
             optic_disc_radius: disc radius in pixels. If None, estimated as
@@ -63,7 +63,7 @@ class ScientificAVRCalculator:
 
         if optic_disc_center is None:
             logger.warning(
-                "ScientificAVRCalculator called without a real optic_disc_center -- "
+                "ScientificAVRCalculator called without a real optic_disc_center; "
                 "falling back to the image's geometric center. This is NOT "
                 "clinically valid; pass the result of detect_optic_disc()."
             )
@@ -73,7 +73,7 @@ class ScientificAVRCalculator:
 
         if optic_disc_radius is None:
             logger.warning(
-                "ScientificAVRCalculator called without a real optic_disc_radius -- "
+                "ScientificAVRCalculator called without a real optic_disc_radius; "
                 "estimating it as 15%% of the smaller image dimension."
             )
             self.od_radius = min(h, w) * 0.15

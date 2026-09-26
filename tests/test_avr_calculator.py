@@ -16,7 +16,7 @@ import numpy as np
 
 # Loads avr_calculator.py directly from its file path, bypassing
 # src.pipeline's __init__.py (which imports torch/torchvision for the rest
-# of the pipeline) -- this module and its tests are pure
+# of the pipeline): this module and its tests are pure
 # numpy/cv2/scipy/skimage and shouldn't depend on a valid torch/torchvision
 # installation.
 _MODULE_PATH = os.path.abspath(

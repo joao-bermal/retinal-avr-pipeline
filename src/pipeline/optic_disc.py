@@ -4,13 +4,13 @@ Optic disc (OD) detection, used to correctly localize the peripapillary
 Zone B in the AVR calculation (see src/pipeline/avr_calculator.py).
 
 Hybrid strategy:
-1. `OpticDiscDetector` -- trained model (EnhancedUNet reused, 1 output
+1. `OpticDiscDetector`: trained model (EnhancedUNet reused, 1 output
    channel = disc probability), when a checkpoint is available under
    models/optic_disc/.
-2. `detect_optic_disc_cv` -- classical computer-vision heuristic (brightest
+2. `detect_optic_disc_cv`: classical computer-vision heuristic (brightest
    region + largest connected component + minimum enclosing circle), always
    available, no training required.
-3. `detect_optic_disc` -- dispatches between the two, with a final fallback
+3. `detect_optic_disc`: dispatches between the two, with a final fallback
    to the image's geometric center (the same old behavior, but now always
    logged explicitly instead of silently).
 """
@@ -24,8 +24,8 @@ import torch
 logger = logging.getLogger(__name__)
 
 # Same ImageNet normalization used in SegmentationAugmentation
-# (src/data/segmentation_dataset.py) during optic disc detector training --
-# must match at inference time, or the model receives an input distribution
+# (src/data/segmentation_dataset.py) during optic disc detector training.
+# It must match at inference time, or the model receives an input distribution
 # completely different from what it saw during training.
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -133,7 +133,7 @@ def min_dim_sigma(shape):
 class OpticDiscDetector:
     """
     Inference wrapper for an EnhancedUNet trained to segment the optic disc
-    (1 output channel, same architecture as vessel segmentation -- see
+    (1 output channel, same architecture as vessel segmentation, see
     src/models/segmentation_model.py).
     """
 
@@ -233,7 +233,7 @@ def detect_optic_disc(image_rgb, model=None, min_confidence=0.3):
 
     h, w = image_rgb.shape[:2]
     logger.warning(
-        "No optic disc detection method reached sufficient confidence -- "
+        "No optic disc detection method reached sufficient confidence, "
         "falling back to the image's geometric center (non-clinical "
         "fallback, documented as a limitation in the thesis)."
     )

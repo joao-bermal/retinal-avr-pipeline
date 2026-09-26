@@ -65,7 +65,7 @@ class ScientificAVRPipeline:
         """
         Loads the trained checkpoints. Unlike the previous version, this
         does NOT silently return success if a required checkpoint
-        (segmentation/A-V classification) is missing -- that would run
+        (segmentation/A-V classification) is missing, since that would run
         inference on randomly-initialized weights with no warning at all.
         """
         seg_ckpt = seg_path or _find_latest_checkpoint(SC['PATHS']['MODELS'])
@@ -102,11 +102,11 @@ class ScientificAVRPipeline:
                 )
                 logger.info("Optic disc model loaded from %s", od_ckpt)
             except Exception:
-                logger.exception("Failed to load optic disc model -- using classical CV only.")
+                logger.exception("Failed to load optic disc model, using classical CV only.")
                 self.od_model = None
         else:
             logger.info(
-                "No trained optic disc checkpoint yet -- using the classical CV heuristic "
+                "No trained optic disc checkpoint yet, using the classical CV heuristic "
                 "(run python main.py --train_od to train one)."
             )
 

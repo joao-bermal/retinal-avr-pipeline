@@ -1,3 +1,6 @@
+# NVIDIA/CUDA and CPU installs. Same torch/torchvision versions as
+# requirements-rocm.txt (the environment the published metrics came from).
+--extra-index-url https://download.pytorch.org/whl/cu128
 albucore==0.0.24
 albumentations==2.0.8
 annotated-types==0.7.0
@@ -93,8 +96,8 @@ pyparsing==3.2.5
 python-dateutil==2.9.0.post0
 python-json-logger==3.3.0
 pytz==2025.2
-pywin32==311
-pywinpty==3.0.0
+pywin32==311; sys_platform == "win32"
+pywinpty==3.0.0; sys_platform == "win32"
 PyYAML==6.0.3
 pyzmq==27.1.0
 referencing==0.36.2
@@ -120,8 +123,8 @@ threadpoolctl==3.6.0
 tifffile==2025.5.10
 tinycss2==1.4.0
 tomli==2.2.1
-torch==2.10.0.dev20250925+cu130
-torchvision==0.25.0.dev20250925+cu130
+torch==2.9.1
+torchvision==0.24.1
 tornado==6.5.2
 tqdm==4.67.1
 traitlets==5.14.3

@@ -33,7 +33,7 @@ def _extract_disc_mask(raw_mask: np.ndarray) -> np.ndarray:
         disc_mask[labels == i] = 1
 
     if disc_mask.sum() == 0:
-        # Fallback: no plausible component isolated -- use the whole ==0
+        # Fallback: no plausible component isolated, so use the whole ==0
         # region (may include the background outside the FOV, but avoids
         # an empty mask).
         disc_mask = zero_region
@@ -44,7 +44,7 @@ def _extract_disc_mask(raw_mask: np.ndarray) -> np.ndarray:
 class OpticDiscDataset(Dataset):
     """
     Optic disc segmentation dataset from IOSTAR (the only downloaded
-    dataset with disc mask ground truth -- data/IOSTAR/mask_OD/).
+    dataset with disc mask ground truth, data/IOSTAR/mask_OD/).
 
     Pairs data/IOSTAR/image/<id>.jpg with data/IOSTAR/mask_OD/<id>_ODMask.tif.
     Follows the same pattern as EnhancedDRIVEDataset (deterministic 80/20
@@ -62,7 +62,7 @@ class OpticDiscDataset(Dataset):
 
         if not self.image_dir.exists():
             raise FileNotFoundError(
-                f"{self.image_dir} does not exist -- copy the original IOSTAR images "
+                f"{self.image_dir} does not exist. Copy the original IOSTAR images "
                 "(see EXECUTION_GUIDE.md, 'Original IOSTAR images' section)."
             )
 

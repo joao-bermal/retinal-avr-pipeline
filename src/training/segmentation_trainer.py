@@ -16,10 +16,10 @@ class EnhancedSegmentationTrainer:
         # segmentation tasks (e.g. optic disc, see OPTIC_DISC_CONFIG) without
         # duplicating the training loop.
         # `keep_all_checkpoints=True` keeps the .pth of every new best epoch
-        # (instead of deleting the previous one) -- used when you want to
+        # (instead of deleting the previous one), used when you want to
         # evaluate multiple epochs against a metric beyond validation Dice
         # (e.g. optic disc center-to-center distance).
-        # `batch_pause_seconds` inserts a pause after every training batch --
+        # `batch_pause_seconds` inserts a pause after every training batch:
         # small/fast datasets (e.g. optic disc, 24 images) feed the GPU with
         # no natural data-loading gap between batches, sustaining continuous
         # 100% utilization; on hardware with marginal thermal dissipation
