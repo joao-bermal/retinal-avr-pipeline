@@ -51,3 +51,7 @@ logs/
 # Local archive of legacy/reference material (large notebooks with embedded
 # outputs) -- kept on disk for the user's own reference, not pushed to git.
 archive/
+
+# Third-party reference material for the thesis (USP/Esalq manual, template and
+# example documents), kept locally and not redistributed.
+docs/thesis/reference/

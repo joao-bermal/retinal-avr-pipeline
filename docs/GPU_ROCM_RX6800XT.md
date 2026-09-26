@@ -13,9 +13,9 @@ the "Mandatory pre-flight checklist" section before starting anything.**
 
 ## TL;DR
 
-- ROCm 6.4.2 (userspace) + the in-tree `amdgpu` kernel driver (kernel ≥ 6.14,
-  no DKMS needed) works. Secure Boot must be **disabled** — see "Secure Boot"
-  below for why the DKMS/MOK route was abandoned in favor of this.
+- ROCm 6.4.2 (userspace) + the in-tree `amdgpu` kernel driver (kernel 6.14 or newer,
+  no DKMS needed) works. Secure Boot must be **disabled** (see "Secure Boot"
+  below for why the DKMS/MOK route was abandoned in favor of this).
 - Two PyTorch settings caused real GPU thermal events (up to a firmware-forced
   power-off) on this card, independent of thermal paste/pads/PSU (already
   ruled out by the user beforehand). Both are already fixed in this codebase;
@@ -23,8 +23,8 @@ the "Mandatory pre-flight checklist" section before starting anything.**
 - Even after both fixes, this specific GPU/cooler combination still spikes
   from idle to 90-110°C junction temperature within a few seconds of *any*
   sustained GPU compute burst, reproducibly. The mitigation is running with
-  the GPU clock locked to its lowest DPM level and a temperature watchdog —
-  see "Mandatory pre-flight checklist."
+  the GPU clock locked to its lowest DPM level and a temperature watchdog
+  (see "Mandatory pre-flight checklist").
 
 ## Environment that is known to work
 
@@ -34,9 +34,9 @@ Secure Boot:   disabled
 GPU driver:    in-tree amdgpu (no DKMS, no /opt/amdgpu-pro)
 ROCm:          6.4.2 (installed via: sudo amdgpu-install --usecase=rocm --no-dkms)
 PyTorch:       torch==2.9.1+rocm6.4 / torchvision==0.24.1+rocm6.4
-               (see requirements-rocm.txt — pip index url
+               (see requirements-rocm.txt, pip index url
                https://download.pytorch.org/whl/rocm6.4)
-Python env:    dedicated venv at .venv/ (NOT the system/anaconda base env —
+Python env:    dedicated venv at .venv/ (NOT the system/anaconda base env:
                a generic `pip install torchvision` in a shared env pulled a
                CUDA build and had to be replaced)
 ```
@@ -55,8 +55,8 @@ python3 -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device
 The machine originally had Secure Boot **enabled** with a DKMS-built,
 self-signed `amdgpu` kernel module (`amdgpu-install`'s default `--usecase`
 includes `dkms`). The signing key was never enrolled in the MOK (Machine
-Owner Key) list — `mokutil --list-enrolled` only showed Canonical's own
-certificate — so the kernel silently refused to load the module: no
+Owner Key) list (`mokutil --list-enrolled` only showed Canonical's own
+certificate), so the kernel silently refused to load the module: no
 `/dev/kfd`, `lsmod | grep amdgpu` empty, no error in `dmesg` (the load was
 never attempted, not rejected). This is the classic Ubuntu/DKMS/Secure-Boot
 gotcha, often compounded by BIOS Fast Boot skipping the one-time MOK
@@ -70,14 +70,14 @@ caused **boot to fail to bring up graphics at all**, requiring an
 amdgpu-uninstall` to remove the broken DKMS/amdgpu-pro stack. After that:
 
 - Secure Boot was disabled entirely.
-- The kernel in use (6.17) already ships a working in-tree `amdgpu` driver —
-  no DKMS module is needed at all. `dkms status` is empty and `/dev/kfd`
+- The kernel in use (6.17) already ships a working in-tree `amdgpu` driver,
+  so no DKMS module is needed at all. `dkms status` is empty and `/dev/kfd`
   exists purely from the in-tree driver.
 - ROCm was then reinstalled **without** the kernel-driver component:
   ```bash
   sudo amdgpu-install --usecase=rocm --no-dkms
   ```
-  `--no-dkms` is the important flag — it installs only the ROCm userspace
+  `--no-dkms` is the important flag: it installs only the ROCm userspace
   libraries (HIP, MIOpen, rocBLAS, etc.) and leaves the kernel driver alone.
 
 **If you're setting this up fresh on a kernel that does NOT have working
@@ -86,7 +86,7 @@ or a properly-enrolled MOK key, before `--no-dkms` becomes an option at all.
 
 ## Root causes and fixes (already applied in this codebase)
 
-### 1. `torch.backends.cudnn.benchmark = True` on ROCm → MIOpen exhaustive search hang
+### 1. `torch.backends.cudnn.benchmark = True` on ROCm: MIOpen exhaustive search hang
 
 `main.py` used to unconditionally set `torch.backends.cudnn.benchmark = True`
 whenever a GPU was available. On CUDA this is a cheap, worthwhile per-shape
@@ -118,7 +118,7 @@ MIOPEN_FIND_MODE=FAST MIOPEN_DEBUG_CONV_IMMEDIATE_FALLBACK=1 python3 main.py --t
 ### 2. GPU thermal runaway during training (real, reproducible, not a paste/pad issue)
 
 The user had already replaced thermal paste, reseated all thermal pads, and
-upgraded the PSU before this session — ruling out the obvious hardware
+upgraded the PSU before this session, ruling out the obvious hardware
 explanations. Confirmed independently during this session:
 
 - Two full **firmware-forced shutdowns** occurred (`dmesg`: `amdgpu: ERROR:
@@ -129,20 +129,20 @@ explanations. Confirmed independently during this session:
   observed jumping from ~50°C to 110°C (the hardware's own critical
   threshold) in as little as 4-11 seconds.
 - Forcing the fan to 100% manually (`sudo rocm-smi --setfan 255`) reduced
-  peak temperature somewhat but **did not eliminate the fast spike** —
+  peak temperature somewhat but **did not eliminate the fast spike**,
   confirming this is not purely a "fan not spinning" problem.
 - Locking the GPU to its lowest DPM clock level (well below default boost)
-  reduced the spike further (peaks dropped from 110°C → ~85-95°C) but still
+  reduced the spike further (peaks dropped from 110°C to about 85-95°C) but still
   did not eliminate it for the optic-disc training workload specifically.
 - The actual fix for the optic-disc case turned out to be about **duty
   cycle**, not just clock/power: that dataset is tiny (24 training images)
   and loads instantly, so the GPU is fed batches back-to-back with *zero*
-  natural idle gap — unlike vessel segmentation or A/V classification, whose
+  natural idle gap, unlike vessel segmentation or A/V classification, whose
   larger images and heavier augmentation pipeline give the GPU brief
   breathing room between batches "for free." Both of those trainings
   completed (135 and 132 epochs respectively) with a **gradual** temperature
   ramp and a **safe** peak (71°C and 65°C) with no changes beyond the clock
-  lock — only the optic-disc training needed an explicit throttle.
+  lock. Only the optic-disc training needed an explicit throttle.
 
 Fix (`src/training/segmentation_trainer.py`): a `batch_pause_seconds`
 constructor argument on `EnhancedSegmentationTrainer` inserts
@@ -155,11 +155,11 @@ pattern, pass `batch_pause_seconds=0.2-0.5` for that trainer too.
 
 With both fixes (clock locked low + `batch_pause_seconds=0.3`), the
 optic-disc training completed all 54 epochs (early stopping) with a
-**gradual** ramp and a peak of only 59°C — no incidents.
+**gradual** ramp and a peak of only 59°C and no incidents.
 
 ## Mandatory pre-flight checklist (do this before any `--train_*` run)
 
-The clock/fan settings below are **not persistent** — they were observed to
+The clock/fan settings below are **not persistent**: they were observed to
 silently revert (DPM unlocking back to full boost clock) across the session
 even without a reboot, for reasons that were not fully root-caused. **Always
 re-check and re-apply immediately before training, not just once per boot
@@ -170,14 +170,14 @@ session.**
    rocm-smi --showtemp --showclocks --showperflevel --showfan
    ```
 2. Lock the clock to its lowest DPM level (do NOT rely on `--setperflevel
-   low` alone — it was observed to report "low" while `sclk` silently sat at
+   low` alone: it was observed to report "low" while `sclk` silently sat at
    the boost level; the explicit two-step manual pin held reliably):
    ```bash
    sudo rocm-smi --setperflevel manual
    sudo rocm-smi --setsclk 0
    ```
-   Re-run `rocm-smi --showclocks` and confirm `sclk clock level: 0` (≈500MHz
-   on this card — check `rocm-smi -s` for the exact level-0 frequency, it can
+   Re-run `rocm-smi --showclocks` and confirm `sclk clock level: 0` (about 500MHz
+   on this card; check `rocm-smi -s` for the exact level-0 frequency, it can
    differ per card/BIOS). If it still shows the boost level, repeat the two
    commands; something intermittently resets this.
 3. Set the fan to a high, fixed speed (manual beats the automatic curve,
@@ -190,34 +190,22 @@ session.**
    export MIOPEN_FIND_MODE=FAST
    export MIOPEN_DEBUG_CONV_IMMEDIATE_FALLBACK=1
    ```
-5. **Run training under a temperature watchdog**, not bare. A minimal
-   version of what was used this session:
+5. **Run training under the temperature watchdog**, not bare. It is in the
+   repository as [`scripts/temp_guard.sh`](../scripts/temp_guard.sh): it runs the
+   command in the background, polls the junction temperature every second
+   with `rocm-smi`, logs each reading to `<logfile>.temp`, and kills the run
+   if the temperature reaches `LIMIT_C` (default 85):
    ```bash
-   #!/bin/bash
-   # save as e.g. scripts/temp_guard.sh, chmod +x
-   set -u
-   CMD="$1"; LOGFILE="$2"; LIMIT_C=85; CHECK_INTERVAL=1
-   bash -c "$CMD" > "$LOGFILE" 2>&1 &
-   PID=$!
-   while kill -0 "$PID" 2>/dev/null; do
-     TEMP=$(rocm-smi --showtemp --json 2>/dev/null | grep -o '"Temperature (Sensor junction) (C)": "[0-9.]*"' | grep -o '[0-9.]*' | head -1)
-     TEMP_INT=${TEMP%.*}
-     if [ -n "$TEMP_INT" ] && [ "$TEMP_INT" -ge "$LIMIT_C" ]; then
-       echo "ABORTING: junction temp ${TEMP}C >= ${LIMIT_C}C limit"
-       kill -TERM "$PID"; sleep 5; kill -KILL "$PID" 2>/dev/null
-       exit 1
-     fi
-     sleep "$CHECK_INTERVAL"
-   done
-   wait "$PID"
+   scripts/temp_guard.sh ".venv/bin/python main.py --train_od" logs/train_od.log
+   LIMIT_C=80 scripts/temp_guard.sh ".venv/bin/python main.py --train_seg" logs/train_seg.log
    ```
    85°C leaves ~25°C of margin below the hardware's own critical/emergency
-   cutoff (110°C / 115°C on this card — check `sensors` for your card's
+   cutoff (110°C / 115°C on this card; check `sensors` for your card's
    values) while still tolerating the normal gradual ramp seen in
    segmentation/A-V training (peaked at 71°C / 65°C).
 6. If a run gets killed by the watchdog (or by a hardware shutdown), **do
-   not just restart the exact same command in a loop hoping it clears up** —
-   re-check clocks/fan (step 2-3, they may have reverted) before retrying.
+   not just restart the exact same command in a loop hoping it clears up**.
+   Re-check clocks/fan (step 2-3, they may have reverted) before retrying.
 
 ## Reference: metrics achieved this session (2026-09-25/26)
 
@@ -231,14 +219,15 @@ matrix, PR curve, sample predictions) behind these numbers.
 | Vessel segmentation (Enhanced U-Net) | Dice | 0.7942 | 0.7965 | `results/segmentation/run_20260925_225243/` |
 | A/V classification (AVNet, ResNet-50) | Macro F1 | 0.9577 | 0.78 | `results/av_classification/run_20260925_234145/` |
 | Optic disc detection (U-Net, 1 channel) | Dice (held-out val) | 0.8545 | 0.85 | `results/optic_disc/run_20260926_122349/` |
-| Optic disc detection | Median center distance (6 true held-out images, never trained on) | **11.1px** | — (new metric; see below) | same run |
+| Optic disc detection | Median center distance (6 held-out images, never trained on) | **11.1px** | none (new metric; see below) | same run |
 
 For comparison, the two baselines this replaces:
 - Naive "assume the optic disc is the image's geometric center" (the original
-  thesis's documented limitation): median center error ≈ 328px.
+  thesis's documented limitation): median center error 327.9px over the 30
+  IOSTAR images.
 - Classical CV heuristic (brightest region + largest connected component,
   no training, `src/pipeline/optic_disc.py::detect_optic_disc_cv`): median
-  center error ≈ 224px, and notably weaker/less consistent than the trained
+  center error 223.7px over the 30 IOSTAR images, and notably weaker/less consistent than the trained
   model on this SLO-derived (IOSTAR) image domain.
 
 The optic-disc model was trained and validated on IOSTAR only (the only
@@ -246,7 +235,7 @@ downloaded dataset with disc-mask ground truth, `data/IOSTAR/mask_OD/`); it
 does not reliably generalize to other fundus camera domains (e.g. DRIVE) and
 the hybrid dispatcher in `src/pipeline/optic_disc.py` correctly falls back to
 the CV heuristic there (low confidence on out-of-domain images). If you want
-better cross-domain generalization, the next step is sourcing OD-mask ground
+better cross-domain generalization, the next step is sourcing optic disc mask ground
 truth for DRIVE/RITE/LES-AV (not currently downloaded) and adding them to
 `src/data/optic_disc_dataset.py`.
 
@@ -265,6 +254,6 @@ never independently isolated from the "no natural inter-batch pause" theory
 above (both were fixed simultaneously: clock lock + `batch_pause_seconds`).
 If you're revisiting this, a controlled experiment (reproduce with
 `batch_pause_seconds=0` again now that the clock is reliably locked, and
-watch specifically for this warning) would be worth running — and would be a
+watch specifically for this warning) would be worth running, and would be a
 legitimate bug to report upstream to ROCm/MIOpen if confirmed, since it's
 quite reproducible on this hardware.
