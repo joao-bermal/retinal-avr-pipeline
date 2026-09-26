@@ -45,3 +45,9 @@ data/*
 !data/.gitkeep
 models/*
 !models/.gitkeep
+logs/
+!logs/.gitkeep
+
+# Local archive of legacy/reference material (large notebooks with embedded
+# outputs) -- kept on disk for the user's own reference, not pushed to git.
+archive/
