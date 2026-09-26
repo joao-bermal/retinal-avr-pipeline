@@ -8,6 +8,10 @@ em Retinografias e Associação com o Risco Cardiovascular".
 
 ## Pipeline
 
+Numbers below are from the **beta run** (git tag `beta`); a documented retraining
+(run 1) that fixes the limitations listed in [`docs/METRICS.md`](docs/METRICS.md) is next.
+
+
 1. **Vessel segmentation** (`EnhancedUNet`): Dice 0.7942 on held-out DRIVE images
    (thesis target 0.7965).
 2. **Artery/vein classification** (`EnhancedMultiDatasetAVNet`, ResNet-50 encoder):

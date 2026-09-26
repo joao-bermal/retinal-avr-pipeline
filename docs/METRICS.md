@@ -1,12 +1,22 @@
 # Metrics
 
+## Runs
+
+| Run | Status | What it is |
+|---|---|---|
+| **beta** | frozen (git tag `beta`) | First end to end training of the consolidated codebase, 2026-09-25/26. The numbers below. Kept as is, including the limitations listed at the end, as the baseline for run 1. |
+| run 1 | planned | Retraining with the limitations below fixed, every figure and metric recorded by the run itself. |
+| run 2 | optional | Only if run 1 shows room to improve by changing training methods. |
+
+## Beta run
+
 Every number below comes from this codebase, trained on an AMD RX 6800XT with ROCm (see
 [`GPU_ROCM_RX6800XT.md`](GPU_ROCM_RX6800XT.md)), and can be regenerated with the commands
 in [`../EXECUTION_GUIDE.md`](../EXECUTION_GUIDE.md). The final metrics and full per epoch
 history of each run are in `results/<task>/run_<id>/training_results.json`, and the metric
 images are in the `evidence/` folder next to it.
 
-## Summary
+### Summary
 
 | Model | Metric | Value | Thesis target | Evaluated on | Run |
 |---|---|---|---|---|---|
@@ -20,7 +30,7 @@ images are in the `evidence/` folder next to it.
 | Optic disc detection (U-Net, 1 channel) | Dice | **0.8545** | 0.85 | 6 IOSTAR images held out from training | `results/optic_disc/run_20260926_122349/` |
 | Optic disc detection | Median center error | **11.1 px** | none (new metric) | same 6 images | same |
 
-## Optic disc detection: before and after
+### Optic disc detection: before and after
 
 The optic disc module replaced a documented limitation of the original thesis: the
 peripapillary Zone B, where vessel calibers for CRAE/CRVE are measured, was built around
@@ -47,7 +57,7 @@ domains such as DRIVE it reports low confidence and the hybrid dispatcher falls 
 the classical heuristic, which is what happens for `data/DRIVE/test/images/01_test.tif`
 (method `CV_BRIGHTEST_REGION`, center (111, 240), radius 66.7 px).
 
-## Known limitations of these numbers
+### Known limitations of these numbers
 
 1. **Segmentation validation set.** DRIVE's test split has no public ground truth, so the
    last 4 of the 20 DRIVE training images are used as validation. The same 4 images
@@ -68,10 +78,10 @@ the classical heuristic, which is what happens for `data/DRIVE/test/images/01_te
    8.5 px as the trained detector's median error over all 30 IOSTAR images. The committed
    evaluation script gives 10.1 px, which is the value above.
 
-These are documented rather than fixed because fixing 2 and 3 changes the training data
-and requires retraining, after which every A/V number here would change.
+The beta run keeps them so its numbers stay reproducible from the `beta` tag; run 1 fixes
+them and retrains.
 
-## Training runs
+### Training runs
 
 | Run | Epochs (early stopped) | Time on RX 6800XT | Peak GPU temperature |
 |---|---|---|---|
@@ -79,7 +89,7 @@ and requires retraining, after which every A/V number here would change.
 | A/V classification | 132 of 250 | under 15 min | 65 C |
 | Optic disc | 54 of 80 | under 5 min | 59 C (with the 0.3 s batch pause) |
 
-## Reproducing
+### Reproducing
 
 ```bash
 scripts/temp_guard.sh ".venv/bin/python main.py --train_seg" logs/train_seg.log

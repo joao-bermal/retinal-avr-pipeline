@@ -1,5 +1,8 @@
 # Thesis
 
+These documents correspond to the **beta run** (git tag `beta`). They will be revised
+after run 1 to follow the formatting manual in full, with run 1 figures and metrics.
+
 | File | Content |
 |---|---|
 | `TCC_Bermal_Santaniello_PT.docx` / `.pdf` | Thesis in Portuguese, with the optic disc correction |
