@@ -1,10 +1,10 @@
 """
-Testes unitarios para o calculo cientifico do AVR (src/pipeline/avr_calculator.py).
+Unit tests for the scientific AVR calculation (src/pipeline/avr_calculator.py).
 
-Usa mascaras sinteticas (sem dataset, sem GPU) para validar:
-1. A geometria do anel da Zona B (0.5-1.0 DD do disco optico).
-2. A combinacao iterativa de Knudtson (maior+menor, nao fold-esquerda).
-3. O pipeline completo calculate_scientific_avr com vasos de largura conhecida.
+Uses synthetic masks (no dataset, no GPU) to validate:
+1. The Zone B ring geometry (0.5-1.0 DD from the optic disc).
+2. The Knudtson iterative combination (largest+smallest, not left-fold).
+3. The full calculate_scientific_avr pipeline with known vessel widths.
 """
 
 import importlib.util
@@ -14,10 +14,11 @@ import os
 import cv2
 import numpy as np
 
-# Carrega avr_calculator.py diretamente pelo caminho do arquivo, sem passar
-# pelo __init__.py de src.pipeline (que importa torch/torchvision para o
-# resto do pipeline) -- este modulo e teste sao puros numpy/cv2/scipy/skimage
-# e nao devem depender de uma instalacao de torch/torchvision valida.
+# Loads avr_calculator.py directly from its file path, bypassing
+# src.pipeline's __init__.py (which imports torch/torchvision for the rest
+# of the pipeline) -- this module and its tests are pure
+# numpy/cv2/scipy/skimage and shouldn't depend on a valid torch/torchvision
+# installation.
 _MODULE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "src", "pipeline", "avr_calculator.py")
 )
@@ -31,64 +32,64 @@ CRVE_COEFFICIENT = avr_calculator.CRVE_COEFFICIENT
 
 
 def test_zone_b_ring_geometry():
-    """A ROI deve incluir só o anel entre 0.5 DD e 1.0 DD do centro do disco."""
+    """The ROI must include only the annulus between 0.5 DD and 1.0 DD from the disc center."""
     shape = (400, 400)
     center = (200, 200)
-    radius = 40.0  # raio do disco -> DD = 80px; zona B = [40px, 80px]
+    radius = 40.0  # disc radius -> DD = 80px; Zone B = [40px, 80px]
     calc = ScientificAVRCalculator(shape, optic_disc_center=center, optic_disc_radius=radius)
     roi = calc._create_roi_mask()
 
-    # Dentro do disco (bem abaixo de 0.5 DD): fora da ROI.
-    assert roi[200, 210] == 0, "pixel dentro do disco não deveria estar na Zona B"
-    # Na metade da Zona B (~60px do centro): dentro da ROI.
-    assert roi[200, 260] == 1, "pixel no meio da Zona B deveria estar incluído"
-    # Bem além de 1.0 DD: fora da ROI.
-    assert roi[200, 320] == 0, "pixel além de 1.0 DD não deveria estar na Zona B"
-    print("[OK] geometria da Zona B (anel 0.5-1.0 DD)")
+    # Inside the disc (well below 0.5 DD): outside the ROI.
+    assert roi[200, 210] == 0, "pixel inside the disc should not be in Zone B"
+    # Halfway through Zone B (~60px from center): inside the ROI.
+    assert roi[200, 260] == 1, "pixel in the middle of Zone B should be included"
+    # Well beyond 1.0 DD: outside the ROI.
+    assert roi[200, 320] == 0, "pixel beyond 1.0 DD should not be in Zone B"
+    print("[OK] Zone B ring geometry (0.5-1.0 DD annulus)")
 
 
 def test_knudtson_combination_uses_largest_smallest_pairing():
     """
-    A combinação deve parear MAIOR com MENOR a cada passo, não um fold da
-    esquerda ingênuo (bug do notebook original).
+    The combination must pair LARGEST with SMALLEST at every step, not a
+    naive left-fold (the original notebook's bug).
     """
     widths = [10.0, 8.0, 6.0, 4.0]
 
-    # Fold ingênuo (bug antigo): sempre index 0 + index 1, reinserido na frente.
+    # Naive fold (old bug): always index 0 + index 1, re-inserted at the front.
     naive = widths.copy()
     while len(naive) > 1:
         w1, w2 = naive[0], naive[1]
         naive = [CRAE_COEFFICIENT * math.sqrt(w1 ** 2 + w2 ** 2)] + naive[2:]
     naive_result = naive[0]
 
-    # Algoritmo canônico: parear maior+menor, reordenar, repetir.
+    # Canonical algorithm: pair largest+smallest, re-sort, repeat.
     result = ScientificAVRCalculator._combine_knudtson(widths, CRAE_COEFFICIENT)
 
-    # Cálculo manual do canônico para [4,6,8,10]:
-    # passo 1: menor=4, maior=10 -> c1 = 0.88*sqrt(10^2+4^2); resto ordenado [6,8,c1]
+    # Manual calculation of the canonical result for [4,6,8,10]:
+    # step 1: smallest=4, largest=10 -> c1 = 0.88*sqrt(10^2+4^2); remaining sorted [6,8,c1]
     c1 = CRAE_COEFFICIENT * math.sqrt(10.0 ** 2 + 4.0 ** 2)
     remaining = sorted([6.0, 8.0, c1])
-    # passo 2: menor e maior de remaining
+    # step 2: smallest and largest of remaining
     smallest, largest = remaining[0], remaining[-1]
     mid = [w for w in remaining if w not in (smallest, largest)] or [remaining[1]]
     c2 = CRAE_COEFFICIENT * math.sqrt(largest ** 2 + smallest ** 2)
     expected = CRAE_COEFFICIENT * math.sqrt(max(c2, mid[0]) ** 2 + min(c2, mid[0]) ** 2)
 
-    assert abs(result - expected) < 1e-6, f"esperado {expected}, obtido {result}"
+    assert abs(result - expected) < 1e-6, f"expected {expected}, got {result}"
     assert abs(result - naive_result) > 1e-6, (
-        "resultado canônico não deveria coincidir com o fold ingênuo neste caso"
+        "canonical result should not coincide with the naive fold in this case"
     )
-    print(f"[OK] combinação Knudtson maior-menor (canônico={result:.4f}, fold ingênuo={naive_result:.4f})")
+    print(f"[OK] Knudtson largest-smallest pairing (canonical={result:.4f}, naive fold={naive_result:.4f})")
 
 
 def test_knudtson_single_and_empty_width():
     assert ScientificAVRCalculator._combine_knudtson([], CRAE_COEFFICIENT) == 0.0
     assert ScientificAVRCalculator._combine_knudtson([5.0], CRAE_COEFFICIENT) == 5.0
-    print("[OK] casos-base (lista vazia / único calibre)")
+    print("[OK] base cases (empty list / single caliber)")
 
 
 def _draw_vessels(shape, center, count, angle_offset_deg, length, thickness):
-    """Desenha `count` linhas retas saindo do centro, simulando vasos radiais."""
+    """Draws `count` straight lines radiating from the center, simulating radial vessels."""
     mask = np.zeros(shape, dtype=np.uint8)
     for i in range(count):
         angle = math.radians(angle_offset_deg + i * (360.0 / count))
@@ -102,15 +103,14 @@ def _draw_vessels(shape, center, count, angle_offset_deg, length, thickness):
 
 def test_calculate_scientific_avr_with_known_widths():
     """
-    Desenha 6 'artérias' radiais mais finas e 6 'veias' radiais mais grossas
-    cruzando a Zona B, e confere que CRAE < CRVE e que o AVR calculado fica
-    perto da razão de larguras nominal (a razão exata de Knudtson difere de
-    largura-bruta/largura-bruta, então validamos só a direção e a ordem de
-    grandeza).
+    Draws 6 thinner radial "arteries" and 6 thicker radial "veins" crossing
+    Zone B, and checks that CRAE < CRVE and that the computed AVR is close
+    to the nominal width ratio (Knudtson's exact ratio differs from a raw
+    width/width ratio, so we only validate direction and order of magnitude).
     """
     shape = (600, 600)
     center = (300, 300)
-    radius = 40.0  # zona B = [40px, 80px] do centro
+    radius = 40.0  # Zone B = [40px, 80px] from center
 
     artery_thickness = 6   # px
     vein_thickness = 10    # px
@@ -123,35 +123,35 @@ def test_calculate_scientific_avr_with_known_widths():
 
     assert result["status"] == "SUCCESS", result
     assert result["crae"] > 0 and result["crve"] > 0
-    assert result["crae"] < result["crve"], "artérias mais finas deveriam gerar CRAE < CRVE"
+    assert result["crae"] < result["crve"], "thinner arteries should yield CRAE < CRVE"
     assert 0.0 < result["avr"] < 1.0
     assert result["measurements"]["artery_count"] >= 2
     assert result["measurements"]["vein_count"] >= 2
-    print(f"[OK] pipeline completo: AVR={result['avr']:.3f} CRAE={result['crae']:.2f} CRVE={result['crve']:.2f} "
-          f"risco={result['risk_level']}")
+    print(f"[OK] full pipeline: AVR={result['avr']:.3f} CRAE={result['crae']:.2f} CRVE={result['crve']:.2f} "
+          f"risk={result['risk_level']}")
 
 
 def test_insufficient_vessels():
-    """Sem vasos suficientes na Zona B, deve retornar INSUFFICIENT_VESSELS, não quebrar."""
+    """Without enough vessels in Zone B, must return INSUFFICIENT_VESSELS, not crash."""
     shape = (300, 300)
     empty_mask = np.zeros(shape, dtype=np.uint8)
     calc = ScientificAVRCalculator(shape, optic_disc_center=(150, 150), optic_disc_radius=20.0)
     result = calc.calculate_scientific_avr(empty_mask, empty_mask)
     assert result["status"] == "INSUFFICIENT_VESSELS"
     assert result["avr"] == 0.0
-    print("[OK] fallback de vasos insuficientes")
+    print("[OK] insufficient-vessels fallback")
 
 
 def test_fallback_center_without_real_optic_disc():
-    """Sem od_center/od_radius reais, ainda funciona (fallback), mas não deve crashar."""
+    """Without real od_center/od_radius, it still works (fallback), but must not crash."""
     shape = (400, 400)
     mask = _draw_vessels(shape, (200, 200), count=6, angle_offset_deg=0, length=150, thickness=8)
-    calc = ScientificAVRCalculator(shape)  # sem od_center/od_radius -> fallback com warning
+    calc = ScientificAVRCalculator(shape)  # no od_center/od_radius -> fallback with a warning
     assert calc.od_center == (200, 200)
     assert calc.od_radius == min(shape) * 0.15
     result = calc.calculate_scientific_avr(mask, mask)
     assert result["status"] in ("SUCCESS", "INSUFFICIENT_VESSELS")
-    print("[OK] fallback sem disco óptico real não quebra (mas usa heurística documentada)")
+    print("[OK] fallback without a real optic disc doesn't crash (but uses the documented heuristic)")
 
 
 if __name__ == "__main__":
@@ -162,7 +162,7 @@ if __name__ == "__main__":
         test_calculate_scientific_avr_with_known_widths()
         test_insufficient_vessels()
         test_fallback_center_without_real_optic_disc()
-        print("\nTodos os testes do AVR calculator passaram.")
+        print("\nAll AVR calculator tests passed.")
     except Exception as e:
-        print(f"\nTeste falhou: {e}")
+        print(f"\nTest failed: {e}")
         raise

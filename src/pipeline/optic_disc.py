@@ -1,18 +1,18 @@
 # src/pipeline/optic_disc.py
 """
-Deteccao do disco optico (OD), usada para localizar corretamente a Zona B
-peripapilar no calculo do AVR (ver src/pipeline/avr_calculator.py).
+Optic disc (OD) detection, used to correctly localize the peripapillary
+Zone B in the AVR calculation (see src/pipeline/avr_calculator.py).
 
-Estrategia hibrida:
-1. `OpticDiscDetector` -- modelo treinado (EnhancedUNet reaproveitado,
-   1 canal de saida = probabilidade de disco), quando ha checkpoint
-   disponivel em models/optic_disc/.
-2. `detect_optic_disc_cv` -- heuristica classica de visao computacional
-   (regiao mais clara + maior componente conexo + circulo minimo
-   envolvente), sempre disponivel, sem necessidade de treino.
-3. `detect_optic_disc` -- despacha entre as duas, com fallback final para o
-   centro geometrico da imagem (o mesmo comportamento antigo, mas agora
-   sempre logado explicitamente em vez de silencioso).
+Hybrid strategy:
+1. `OpticDiscDetector` -- trained model (EnhancedUNet reused, 1 output
+   channel = disc probability), when a checkpoint is available under
+   models/optic_disc/.
+2. `detect_optic_disc_cv` -- classical computer-vision heuristic (brightest
+   region + largest connected component + minimum enclosing circle), always
+   available, no training required.
+3. `detect_optic_disc` -- dispatches between the two, with a final fallback
+   to the image's geometric center (the same old behavior, but now always
+   logged explicitly instead of silently).
 """
 
 import logging
@@ -23,19 +23,20 @@ import torch
 
 logger = logging.getLogger(__name__)
 
-# Mesma normalizacao ImageNet usada em SegmentationAugmentation (src/data/segmentation_dataset.py)
-# durante o treino do detector de disco optico -- precisa bater no inference, senao o
-# modelo recebe uma distribuicao de entrada completamente diferente da que viu no treino.
+# Same ImageNet normalization used in SegmentationAugmentation
+# (src/data/segmentation_dataset.py) during optic disc detector training --
+# must match at inference time, or the model receives an input distribution
+# completely different from what it saw during training.
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
-# O disco optico tipicamente ocupa entre ~5% e ~25% da menor dimensao da
-# imagem em retinografias de fundo padrao (DRIVE/RITE/IOSTAR). Usado para
-# rejeitar deteccoes implausiveis.
+# The optic disc typically occupies ~5% to ~25% of the smaller image
+# dimension in standard fundus photographs (DRIVE/RITE/IOSTAR). Used to
+# reject implausible detections.
 MIN_DISC_RADIUS_FRACTION = 0.03
 MAX_DISC_RADIUS_FRACTION = 0.25
 
-# Fallback de ultimo recurso (mesma heuristica documentada no TCC, pag. 20).
+# Last-resort fallback (the same heuristic documented in the thesis, p. 20).
 FALLBACK_RADIUS_FRACTION = 0.15
 
 
@@ -47,16 +48,16 @@ def _bounds_for_shape(shape):
 
 def detect_optic_disc_cv(image_rgb):
     """
-    Heuristica classica (sem treino): o disco optico e uma das regioes mais
-    claras e mais saturadas em vermelho/amarelo do fundo de olho, e
-    aproximadamente circular.
+    Classical heuristic (no training): the optic disc is one of the
+    brightest, most red/yellow-saturated regions of the fundus, and
+    approximately circular.
 
     Args:
-        image_rgb: imagem RGB (H, W, 3), uint8.
+        image_rgb: RGB image (H, W, 3), uint8.
 
     Returns:
         dict {center: (x, y), radius: float, confidence: float, method: str}
-        ou None se nenhuma regiao plausivel foi encontrada.
+        or None if no plausible region was found.
     """
     if image_rgb is None or image_rgb.size == 0:
         return None
@@ -64,11 +65,11 @@ def detect_optic_disc_cv(image_rgb):
     h, w = image_rgb.shape[:2]
     min_radius, max_radius = _bounds_for_shape(image_rgb.shape)
 
-    # Canal vermelho: o disco optico e tipicamente a regiao mais brilhante
-    # no canal vermelho de uma retinografia colorida (Zhu et al.; ARIA).
+    # Red channel: the optic disc is typically the brightest region in the
+    # red channel of a color fundus photograph (Zhu et al.; ARIA).
     red = image_rgb[:, :, 0].astype(np.float32)
 
-    # Mascara de campo de visao (FOV): ignora fundo preto fora da retina.
+    # Field-of-view (FOV) mask: ignore the black background outside the retina.
     fov_mask = (image_rgb.sum(axis=2) > 15).astype(np.uint8)
     if fov_mask.sum() < 0.05 * h * w:
         fov_mask = np.ones((h, w), dtype=np.uint8)
@@ -78,14 +79,14 @@ def detect_optic_disc_cv(image_rgb):
         red_blurred.astype(np.uint8), red_blurred.astype(np.uint8), mask=fov_mask
     )
 
-    # Top ~2% dos pixels mais claros dentro do FOV.
+    # Top ~2% brightest pixels within the FOV.
     valid = red_blurred[fov_mask > 0]
     if valid.size == 0:
         return None
     threshold = np.percentile(valid, 98)
     bright_mask = ((red_blurred >= threshold) & (fov_mask > 0)).astype(np.uint8)
 
-    # Limpeza morfologica + maior componente conexo.
+    # Morphological cleanup + largest connected component.
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     bright_mask = cv2.morphologyEx(bright_mask, cv2.MORPH_CLOSE, kernel)
     bright_mask = cv2.morphologyEx(bright_mask, cv2.MORPH_OPEN, kernel)
@@ -94,7 +95,7 @@ def detect_optic_disc_cv(image_rgb):
     if num_labels <= 1:
         return None
 
-    # Maior componente (ignorando o rotulo 0 = fundo).
+    # Largest component (ignoring label 0 = background).
     largest_label = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
     component_mask = (labels == largest_label).astype(np.uint8)
 
@@ -110,7 +111,7 @@ def detect_optic_disc_cv(image_rgb):
 
     if not (min_radius <= radius <= max_radius):
         logger.debug(
-            "OD candidato via CV rejeitado: raio %.1fpx fora do intervalo plausivel [%.1f, %.1f]",
+            "CV OD candidate rejected: radius %.1fpx outside plausible range [%.1f, %.1f]",
             radius, min_radius, max_radius,
         )
         return None
@@ -125,15 +126,15 @@ def detect_optic_disc_cv(image_rgb):
 
 
 def min_dim_sigma(shape):
-    """Sigma do blur gaussiano, proporcional ao tamanho da imagem."""
+    """Gaussian blur sigma, proportional to image size."""
     return max(3.0, min(shape[:2]) * 0.01)
 
 
 class OpticDiscDetector:
     """
-    Wrapper de inferencia para um EnhancedUNet treinado para segmentar o
-    disco optico (1 canal de saida, mesma arquitetura da segmentacao de
-    vasos -- ver src/models/segmentation_model.py).
+    Inference wrapper for an EnhancedUNet trained to segment the optic disc
+    (1 output channel, same architecture as vessel segmentation -- see
+    src/models/segmentation_model.py).
     """
 
     def __init__(self, checkpoint_path, device=None, image_size=(512, 512), threshold=0.5):
@@ -151,12 +152,12 @@ class OpticDiscDetector:
     def detect(self, image_rgb):
         """
         Args:
-            image_rgb: imagem RGB (H, W, 3), uint8, tamanho original.
+            image_rgb: RGB image (H, W, 3), uint8, original size.
 
         Returns:
-            dict {center, radius, confidence, method} no espaco de
-            coordenadas da imagem original, ou None se o modelo nao
-            encontrou nenhuma regiao plausivel.
+            dict {center, radius, confidence, method} in the original
+            image's coordinate space, or None if the model found no
+            plausible region.
         """
         h0, w0 = image_rgb.shape[:2]
         min_radius, max_radius = _bounds_for_shape(image_rgb.shape)
@@ -178,7 +179,7 @@ class OpticDiscDetector:
 
         (cx, cy), radius = cv2.minEnclosingCircle(contour)
 
-        # Reescala de volta para o tamanho original da imagem.
+        # Rescale back to the original image size.
         scale_x = w0 / self.image_size[1]
         scale_y = h0 / self.image_size[0]
         cx_orig, cy_orig = cx * scale_x, cy * scale_y
@@ -186,7 +187,7 @@ class OpticDiscDetector:
 
         if not (min_radius <= radius_orig <= max_radius):
             logger.debug(
-                "OD candidato via modelo rejeitado: raio %.1fpx fora do intervalo plausivel",
+                "Model OD candidate rejected: radius %.1fpx outside plausible range",
                 radius_orig,
             )
             return None
@@ -202,16 +203,17 @@ class OpticDiscDetector:
 
 def detect_optic_disc(image_rgb, model=None, min_confidence=0.3):
     """
-    Deteccao hibrida do disco optico: tenta o modelo treinado (se fornecido
-    e confiante), cai para a heuristica de CV classica, e so em ultimo caso
-    cai no centro geometrico da imagem (fallback documentado, nao clinico).
+    Hybrid optic disc detection: tries the trained model (if provided and
+    confident), falls back to the classical CV heuristic, and only as a
+    last resort falls back to the image's geometric center (documented,
+    non-clinical fallback).
 
     Args:
-        image_rgb: imagem RGB (H, W, 3), uint8.
-        model: instancia opcional de OpticDiscDetector (None = pula direto
-            para o CV classico).
-        min_confidence: confianca minima para aceitar uma deteccao (do
-            modelo ou do CV) antes de cair para o proximo metodo.
+        image_rgb: RGB image (H, W, 3), uint8.
+        model: optional OpticDiscDetector instance (None = skip straight to
+            the classical CV heuristic).
+        min_confidence: minimum confidence to accept a detection (from the
+            model or from CV) before falling back to the next method.
 
     Returns:
         dict {center: (x, y), radius: float, confidence: float, method: str}
@@ -221,9 +223,9 @@ def detect_optic_disc(image_rgb, model=None, min_confidence=0.3):
             result = model.detect(image_rgb)
             if result is not None and result["confidence"] >= min_confidence:
                 return result
-            logger.info("Modelo de disco optico com baixa confianca, tentando CV classico.")
+            logger.info("Optic disc model has low confidence, trying classical CV.")
         except Exception:
-            logger.exception("Falha ao rodar o modelo de disco optico, tentando CV classico.")
+            logger.exception("Failed to run the optic disc model, trying classical CV.")
 
     cv_result = detect_optic_disc_cv(image_rgb)
     if cv_result is not None and cv_result["confidence"] >= min_confidence:
@@ -231,9 +233,9 @@ def detect_optic_disc(image_rgb, model=None, min_confidence=0.3):
 
     h, w = image_rgb.shape[:2]
     logger.warning(
-        "Nenhum metodo de deteccao do disco optico teve confianca suficiente -- "
-        "caindo para o centro geometrico da imagem (fallback nao clinico, "
-        "documentado como limitacao no TCC)."
+        "No optic disc detection method reached sufficient confidence -- "
+        "falling back to the image's geometric center (non-clinical "
+        "fallback, documented as a limitation in the thesis)."
     )
     return {
         "center": (w / 2.0, h / 2.0),

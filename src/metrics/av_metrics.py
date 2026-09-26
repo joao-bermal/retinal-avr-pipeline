@@ -8,7 +8,7 @@ from sklearn.metrics import f1_score, accuracy_score
 @torch.no_grad()
 def av_pixel_metrics(logits, targets):
     """
-    Retorna dict {"macro_f1", "acc", "f1_art", "f1_vein"} no padrão SOTA.
+    Returns dict {"macro_f1", "acc", "f1_art", "f1_vein"} in the standard SOTA format.
     """
     if logits.shape[-2:] != targets.shape[-2:]:
         logits = F.interpolate(logits, size=targets.shape[-2:], mode="bilinear", align_corners=False)

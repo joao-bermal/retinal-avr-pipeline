@@ -1,20 +1,21 @@
 # src/pipeline/avr_calculator.py
 """
-Calculo cientifico do AVR (Arteriolar-to-Venular Ratio) a partir de mascaras
-binarias de arteria/veia, seguindo o protocolo Knudtson (Zona B peripapilar,
-CRAE/CRVE por equivalencia iterativa).
+Scientific AVR (Arteriolar-to-Venular Ratio) calculation from binary
+artery/vein masks, following the Knudtson protocol (peripapillary Zone B,
+iterative CRAE/CRVE equivalence).
 
-Portado de retinal-avr-cardiovascular-risk/notebooks/03_integrated_pipeline.ipynb
-(classe ScientificAVRCalculator), com duas correcoes em relacao ao original:
+Ported from retinal-avr-cardiovascular-risk/notebooks/03_integrated_pipeline.ipynb
+(ScientificAVRCalculator class), with two corrections relative to the
+original:
 
-1. A combinacao iterativa de CRAE/CRVE agora segue o algoritmo canonico de
-   Knudtson et al. (2003) -- combinar a cada passo o MAIOR com o MENOR calibre
-   restante, reordenando -- em vez do fold-esquerda ingenuo (sempre index 0 +
-   index 1) do notebook original.
-2. O centro/raio do disco optico usados para montar a Zona B agora sao
-   parametros obrigatorios na pratica: quando nao fornecidos, o fallback para
-   o centro geometrico da imagem gera um aviso explicito (era silencioso).
-   A deteccao real do disco fica em src/pipeline/optic_disc.py.
+1. The iterative CRAE/CRVE combination now follows the canonical Knudtson
+   et al. (2003) algorithm -- at each step, combine the LARGEST with the
+   SMALLEST remaining caliber, then re-sort -- instead of the original
+   notebook's naive left-fold (always index 0 + index 1).
+2. The optic disc center/radius used to build Zone B are now, in practice,
+   required parameters: when omitted, the fallback to the image's geometric
+   center now logs an explicit warning (it used to be silent). Real disc
+   detection lives in src/pipeline/optic_disc.py.
 """
 
 import logging
@@ -26,11 +27,11 @@ from skimage.morphology import skeletonize
 
 logger = logging.getLogger(__name__)
 
-# Protocolo Knudtson: Zona B = anel entre 0.5 DD e 1.0 DD do disco optico.
+# Knudtson protocol: Zone B = annulus between 0.5 DD and 1.0 DD of the optic disc.
 ZONE_B_INNER_DD = 0.5
 ZONE_B_OUTER_DD = 1.0
 
-# Coeficientes de equivalencia de Knudtson et al. (2003).
+# Knudtson et al. (2003) equivalence coefficients.
 CRAE_COEFFICIENT = 0.88
 CRVE_COEFFICIENT = 0.95
 
@@ -41,31 +42,30 @@ MIN_VESSELS_PER_TYPE = 2
 
 class ScientificAVRCalculator:
     """
-    Calcula o AVR a partir de larguras vasculares reais medidas na Zona B
-    peripapilar, usando as formulas de equivalencia de Knudtson.
+    Computes AVR from real vessel calibers measured in the peripapillary
+    Zone B, using the Knudtson equivalence formulas.
     """
 
     def __init__(self, image_shape, optic_disc_center=None, optic_disc_radius=None):
         """
         Args:
-            image_shape: shape (H, W[, C]) da mascara de arteria/veia.
-            optic_disc_center: (x, y) em pixels. Se None, usa o centro
-                geometrico da imagem como ultimo recurso (impreciso -- loga
-                aviso). Prefira sempre passar o resultado de
+            image_shape: shape (H, W[, C]) of the artery/vein mask.
+            optic_disc_center: (x, y) in pixels. If None, falls back to the
+                image's geometric center as a last resort (inaccurate --
+                logs a warning). Always prefer passing the result of
                 src.pipeline.optic_disc.detect_optic_disc().
-            optic_disc_radius: raio do disco em pixels. Se None, estima como
-                15% da menor dimensao da imagem (heuristica grosseira, mesma
-                ressalva acima).
+            optic_disc_radius: disc radius in pixels. If None, estimated as
+                15% of the smaller image dimension (rough heuristic, same
+                caveat as above).
         """
         self.image_shape = image_shape
         h, w = image_shape[:2]
 
         if optic_disc_center is None:
             logger.warning(
-                "ScientificAVRCalculator sem optic_disc_center real -- "
-                "usando o centro geometrico da imagem como fallback. "
-                "Isso NAO e clinicamente valido; passe o resultado de "
-                "detect_optic_disc()."
+                "ScientificAVRCalculator called without a real optic_disc_center -- "
+                "falling back to the image's geometric center. This is NOT "
+                "clinically valid; pass the result of detect_optic_disc()."
             )
             self.od_center = (w // 2, h // 2)
         else:
@@ -73,15 +73,15 @@ class ScientificAVRCalculator:
 
         if optic_disc_radius is None:
             logger.warning(
-                "ScientificAVRCalculator sem optic_disc_radius real -- "
-                "estimando como 15%% da menor dimensao da imagem."
+                "ScientificAVRCalculator called without a real optic_disc_radius -- "
+                "estimating it as 15%% of the smaller image dimension."
             )
             self.od_radius = min(h, w) * 0.15
         else:
             self.od_radius = optic_disc_radius
 
     def _create_roi_mask(self):
-        """Mascara da Zona B: anel entre 0.5 DD e 1.0 DD do disco optico."""
+        """Zone B mask: annulus between 0.5 DD and 1.0 DD of the optic disc."""
         h, w = self.image_shape[:2]
         y, x = np.ogrid[:h, :w]
         distances = np.sqrt((x - self.od_center[0]) ** 2 + (y - self.od_center[1]) ** 2)
@@ -95,7 +95,7 @@ class ScientificAVRCalculator:
 
     @staticmethod
     def _get_vessel_skeleton(vessel_mask, roi_mask):
-        """Esqueleto morfologico dos vasos restritos a ROI."""
+        """Morphological skeleton of the vessels restricted to the ROI."""
         vessel_binary = (vessel_mask > 127).astype(np.uint8)
         vessel_in_roi = cv2.bitwise_and(vessel_binary, roi_mask)
         if vessel_in_roi.sum() == 0:
@@ -104,7 +104,7 @@ class ScientificAVRCalculator:
 
     @staticmethod
     def _measure_vessel_widths(vessel_mask, skeleton):
-        """Largura = 2x a distancia do ponto do esqueleto ate a borda do vaso."""
+        """Width = 2x the distance from a skeleton point to the vessel edge."""
         vessel_binary = (vessel_mask > 127).astype(np.uint8)
         if vessel_binary.sum() == 0 or skeleton.sum() == 0:
             return []
@@ -117,9 +117,9 @@ class ScientificAVRCalculator:
     @staticmethod
     def _combine_knudtson(widths, coefficient):
         """
-        Combinacao iterativa canonica de Knudtson: a cada passo, combina o
-        MAIOR com o MENOR calibre restante e reinsere o valor combinado,
-        ate sobrar um unico calibre equivalente.
+        Canonical Knudtson iterative combination: at each step, combine the
+        LARGEST with the SMALLEST remaining caliber and re-insert the
+        combined value, until a single equivalent caliber remains.
         """
         if not widths:
             return 0.0
@@ -143,13 +143,13 @@ class ScientificAVRCalculator:
 
     @staticmethod
     def _interpret_avr(avr):
-        """Interpretacao clinica (Wong e Mitchell, 2003; Liew et al., 2023)."""
+        """Clinical interpretation (Wong and Mitchell, 2003; Liew et al., 2023)."""
         if avr >= 0.67:
-            return "NORMAL", "Baixo risco cardiovascular", "HIGH"
+            return "NORMAL", "Low cardiovascular risk", "HIGH"
         elif avr >= 0.60:
-            return "BORDERLINE", "Risco moderado - monitoramento recomendado", "MEDIUM"
+            return "BORDERLINE", "Moderate risk - monitoring recommended", "MEDIUM"
         else:
-            return "HIGH_RISK", "Alto risco cardiovascular - avaliacao clinica necessaria", "HIGH"
+            return "HIGH_RISK", "High cardiovascular risk - clinical evaluation needed", "HIGH"
 
     @staticmethod
     def _insufficient_vessels_result(artery_count, vein_count):
@@ -160,8 +160,8 @@ class ScientificAVRCalculator:
             "status": "INSUFFICIENT_VESSELS",
             "risk_level": "INDETERMINATE",
             "risk_description": (
-                f"Vasos insuficientes na Zona B: {artery_count} arterias, "
-                f"{vein_count} veias (minimo: {MIN_VESSELS_PER_TYPE} cada)"
+                f"Insufficient vessels in Zone B: {artery_count} arteries, "
+                f"{vein_count} veins (minimum: {MIN_VESSELS_PER_TYPE} each)"
             ),
             "confidence": "LOW",
             "measurements": {
@@ -175,12 +175,12 @@ class ScientificAVRCalculator:
 
     def calculate_scientific_avr(self, artery_mask, vein_mask):
         """
-        Calcula o AVR cientifico (protocolo Knudtson) a partir das mascaras
-        binarias de arteria e veia (0/255), restrito a Zona B peripapilar.
+        Computes the scientific AVR (Knudtson protocol) from binary artery
+        and vein masks (0/255), restricted to the peripapillary Zone B.
 
         Returns:
-            dict com avr, crae, crve, status, risk_level, risk_description,
-            confidence, measurements e method.
+            dict with avr, crae, crve, status, risk_level, risk_description,
+            confidence, measurements and method.
         """
         try:
             roi_mask = self._create_roi_mask()
@@ -225,15 +225,15 @@ class ScientificAVRCalculator:
                 },
                 "method": "SCIENTIFIC_KNUDTSON",
             }
-        except Exception as e:  # noqa: BLE001 - queremos um resultado estruturado, nao um crash
-            logger.exception("Falha no calculo cientifico do AVR")
+        except Exception as e:  # noqa: BLE001 - we want a structured result, not a crash
+            logger.exception("Scientific AVR calculation failed")
             return {
                 "avr": 0.0,
                 "crae": 0.0,
                 "crve": 0.0,
                 "status": "ERROR",
                 "risk_level": "INDETERMINATE",
-                "risk_description": f"Erro no calculo: {e}",
+                "risk_description": f"Calculation error: {e}",
                 "confidence": "LOW",
                 "method": "SCIENTIFIC_KNUDTSON",
             }

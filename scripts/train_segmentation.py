@@ -129,7 +129,7 @@ def main():
     print("\nStarting Training...")
     best_model_path, history, final_metrics, run_id = trainer.train()
     
-    # 4. Avaliação e Gráficos Finais
+    # 4. Final Evaluation and Plots
     if best_model_path and best_model_path.exists():
         print(f"\nLoading best model for final metrics from {best_model_path}")
         model.load_state_dict(torch.load(best_model_path, map_location=DEVICE, weights_only=True))

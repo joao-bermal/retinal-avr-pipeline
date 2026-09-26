@@ -244,8 +244,8 @@ def main():
         )
         trainer = EnhancedSegmentationTrainer(
             model, train_loader, val_loader, resume=args.resume, config=OPTIC_DISC_CONFIG,
-            keep_all_checkpoints=True,  # dataset pequeno -- vale avaliar cada epoca por distancia centro-a-centro
-            batch_pause_seconds=0.3,  # dataset minusculo sustenta 100% de GPU sem pausa -- ver comentario no trainer
+            keep_all_checkpoints=True,  # small dataset -- worth evaluating every epoch by center-to-center distance
+            batch_pause_seconds=0.3,  # tiny dataset sustains 100% GPU with no pause -- see trainer docstring
         )
 
         best_model_path, history, final_metrics, run_id = trainer.train(epochs=OPTIC_DISC_CONFIG["TRAINING"]["EPOCHS"])

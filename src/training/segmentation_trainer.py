@@ -12,21 +12,20 @@ from src.metrics.evaluation_metrics import compute_segmentation_metrics
 class EnhancedSegmentationTrainer:
     def __init__(self, model, train_loader, val_loader, resume=False, config=None,
                  keep_all_checkpoints=False, batch_pause_seconds=0.0):
-        # `config` permite reaproveitar este trainer genérico para outras
-        # tarefas de segmentação binária (ex: disco óptico, ver
-        # OPTIC_DISC_CONFIG) sem duplicar o loop de treino.
-        # `keep_all_checkpoints=True` mantém o .pth de cada nova melhor época
-        # (em vez de apagar o anterior) -- usado quando se quer avaliar
-        # múltiplas épocas por uma métrica além do dice de validação (ex:
-        # distância centro-a-centro do disco óptico).
-        # `batch_pause_seconds` insere uma pausa apos cada batch de treino --
-        # datasets pequenos/rapidos (ex: disco optico, 24 imagens) alimentam a
-        # GPU sem nenhum intervalo natural de carregamento de dados entre
-        # batches, sustentando 100% de utilizacao continua; em hardware com
-        # dissipacao termica marginal isso pode disparar picos de temperatura
-        # que nao aparecem em datasets maiores (mais tempo de I/O/augmentation
-        # por batch cria pausas naturais). Custo: treino mais lento, sem
-        # nenhum efeito no resultado final.
+        # `config` lets this generic trainer be reused for other binary
+        # segmentation tasks (e.g. optic disc, see OPTIC_DISC_CONFIG) without
+        # duplicating the training loop.
+        # `keep_all_checkpoints=True` keeps the .pth of every new best epoch
+        # (instead of deleting the previous one) -- used when you want to
+        # evaluate multiple epochs against a metric beyond validation Dice
+        # (e.g. optic disc center-to-center distance).
+        # `batch_pause_seconds` inserts a pause after every training batch --
+        # small/fast datasets (e.g. optic disc, 24 images) feed the GPU with
+        # no natural data-loading gap between batches, sustaining continuous
+        # 100% utilization; on hardware with marginal thermal dissipation
+        # this can trigger temperature spikes that don't appear on larger
+        # datasets (more I/O/augmentation time per batch creates natural
+        # pauses). Cost: slower training, with no effect on the final result.
         C = config or SEGMENTATION_CONFIG
         self.config = C
         self.keep_all_checkpoints = keep_all_checkpoints
@@ -176,7 +175,7 @@ class EnhancedSegmentationTrainer:
                 self.best_dice, self.patience = dice, 0
                 
                 # Delete previous best model in this run if it exists
-                # (a menos que keep_all_checkpoints peça pra manter o historico)
+                # (unless keep_all_checkpoints asks to keep the full history)
                 if not self.keep_all_checkpoints and self.best_path and self.best_path.exists():
                     self.best_path.unlink()
 

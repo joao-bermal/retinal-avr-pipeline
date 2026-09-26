@@ -151,12 +151,12 @@ for key in AV_CLASSIFICATION_CONFIG['PATHS']:
     AV_CLASSIFICATION_CONFIG['PATHS'][key].mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
-# OPTIC DISC DETECTION CONFIGURATIONS (Enhanced U-Net, 1 canal)
+# OPTIC DISC DETECTION CONFIGURATIONS (Enhanced U-Net, 1 channel)
 # =============================================================================
-# Reaproveita a arquitetura EnhancedUNet (mesma da segmentacao de vasos),
-# treinada sobre data/IOSTAR/mask_OD (unico dataset baixado com mascara de
-# disco optico). Usado para corrigir a Zona B peripapilar no calculo do AVR
-# (ver src/pipeline/optic_disc.py e src/pipeline/avr_calculator.py).
+# Reuses the EnhancedUNet architecture (same as vessel segmentation), trained
+# on data/IOSTAR/mask_OD (the only downloaded dataset with optic disc mask
+# ground truth). Used to correctly build the peripapillary Zone B in the AVR
+# calculation (see src/pipeline/optic_disc.py and src/pipeline/avr_calculator.py).
 
 OPTIC_DISC_CONFIG = {
     'DATASET': {
@@ -172,7 +172,7 @@ OPTIC_DISC_CONFIG = {
         'FEATURES': [64, 128, 256, 512],
     },
     'TRAINING': {
-        # Dataset pequeno (~30 imagens) -- poucas epocas, early stopping agressivo.
+        # Small dataset (~30 images) -- few epochs, aggressive early stopping.
         'EPOCHS': 80,
         'BATCH_SIZE': 2,
         'LEARNING_RATE': 5e-4,
@@ -192,7 +192,7 @@ OPTIC_DISC_CONFIG = {
         'IOU_WEIGHT': 0.1,
     },
     'TARGETS': {
-        'DICE_SCORE': 0.85,  # disco optico e uma forma simples/compacta -> meta mais alta que vasos finos
+        'DICE_SCORE': 0.85,  # the optic disc is a simple/compact shape -> higher target than thin vessels
     },
     'PATHS': {
         'MODELS': Path('models/optic_disc'),
@@ -219,7 +219,7 @@ PIPELINE_CONFIG = {
     'AVR_MIN_VESSEL_THRESHOLD': 0.1, # Minimum percentage of vessels to calculate AVR
     'OD_DETECTION_METHOD': 'hybrid',  # 'hybrid' | 'trained_model' | 'cv' | 'fallback_center'
     'OD_MIN_CONFIDENCE': 0.3,
-    'ZONE_B_INNER_DD': 0.5,  # protocolo Knudtson: anel entre 0.5 e 1.0 diametros do disco
+    'ZONE_B_INNER_DD': 0.5,  # Knudtson protocol: annulus between 0.5 and 1.0 disc diameters
     'ZONE_B_OUTER_DD': 1.0,
     'OUTPUT_DIR': Path('results/integrated_pipeline'),
 }

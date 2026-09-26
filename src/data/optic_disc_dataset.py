@@ -4,18 +4,18 @@ import torch
 from pathlib import Path
 from torch.utils.data import Dataset
 
-# O IOSTAR/mask_OD NAO e uma mascara binaria "disco=255, resto=0": o valor 0
-# marca tanto o disco optico quanto a regiao fora do campo de visao (FOV),
-# que ficam conectados pelas bordas da imagem (255 = tecido retiniano normal,
-# a maioria dos pixels). Para isolar so o disco, descartamos o componente
-# conexo que toca a borda (FOV) e ficamos com o(s) componente(s) compacto(s)
-# de tamanho plausivel no centro da imagem.
+# IOSTAR/mask_OD is NOT a simple "disc=255, rest=0" binary mask: value 0
+# marks both the optic disc AND the region outside the field of view (FOV),
+# which are connected through the image borders (255 = normal retinal
+# tissue, most pixels). To isolate just the disc, we discard the connected
+# component that touches the border (FOV) and keep the compact
+# plausibly-sized component(s) near the image center.
 _MIN_DISC_RADIUS_FRACTION = 0.03
 _MAX_DISC_RADIUS_FRACTION = 0.25
 
 
 def _extract_disc_mask(raw_mask: np.ndarray) -> np.ndarray:
-    """Isola o disco optico a partir da mascara bruta do IOSTAR (ver nota acima)."""
+    """Isolates the optic disc from the raw IOSTAR mask (see note above)."""
     h, w = raw_mask.shape[:2]
     min_r = _MIN_DISC_RADIUS_FRACTION * min(h, w)
     max_r = _MAX_DISC_RADIUS_FRACTION * min(h, w)
@@ -33,8 +33,9 @@ def _extract_disc_mask(raw_mask: np.ndarray) -> np.ndarray:
         disc_mask[labels == i] = 1
 
     if disc_mask.sum() == 0:
-        # Fallback: nenhum componente plausivel isolado -- usa a regiao ==0
-        # inteira (pode incluir o fundo fora do FOV, mas evita mascara vazia).
+        # Fallback: no plausible component isolated -- use the whole ==0
+        # region (may include the background outside the FOV, but avoids
+        # an empty mask).
         disc_mask = zero_region
 
     return disc_mask
@@ -42,12 +43,12 @@ def _extract_disc_mask(raw_mask: np.ndarray) -> np.ndarray:
 
 class OpticDiscDataset(Dataset):
     """
-    Dataset de segmentacao do disco optico a partir do IOSTAR (unico dataset
-    baixado com mascara de disco -- data/IOSTAR/mask_OD/).
+    Optic disc segmentation dataset from IOSTAR (the only downloaded
+    dataset with disc mask ground truth -- data/IOSTAR/mask_OD/).
 
-    Pareia data/IOSTAR/image/<id>.jpg com data/IOSTAR/mask_OD/<id>_ODMask.tif.
-    Segue o mesmo padrao de EnhancedDRIVEDataset (split determinístico
-    80/20, sem embaralhar antes de dividir, para reprodutibilidade).
+    Pairs data/IOSTAR/image/<id>.jpg with data/IOSTAR/mask_OD/<id>_ODMask.tif.
+    Follows the same pattern as EnhancedDRIVEDataset (deterministic 80/20
+    split, no shuffling before splitting, for reproducibility).
     """
 
     def __init__(self, base_path, phase="train", img_size=(512, 512), transform=None):
@@ -61,8 +62,8 @@ class OpticDiscDataset(Dataset):
 
         if not self.image_dir.exists():
             raise FileNotFoundError(
-                f"{self.image_dir} nao existe -- copie as imagens originais do IOSTAR "
-                "(veja EXECUTION_GUIDE.md, secao 'Disco optico')."
+                f"{self.image_dir} does not exist -- copy the original IOSTAR images "
+                "(see EXECUTION_GUIDE.md, 'Original IOSTAR images' section)."
             )
 
         all_images = sorted(self.image_dir.glob("*.jpg"))
@@ -73,12 +74,12 @@ class OpticDiscDataset(Dataset):
                 self.images.append(img_path)
                 self.masks.append(mask_path)
             else:
-                print(f"[WARN] mascara de disco optico nao encontrada para {img_path.name}")
+                print(f"[WARN] optic disc mask not found for {img_path.name}")
 
-        assert len(self.images) == len(self.masks), "Numero de imagens e mascaras nao bate."
-        assert len(self.images) > 0, f"Nenhum par imagem/mascara encontrado em {self.base_path}"
+        assert len(self.images) == len(self.masks), "Number of images and masks doesn't match."
+        assert len(self.images) > 0, f"No image/mask pairs found in {self.base_path}"
 
-        # Split deterministico 80/20 (dataset pequeno: ~30 imagens).
+        # Deterministic 80/20 split (small dataset: ~30 images).
         split_idx = max(1, int(len(self.images) * 0.8))
         if self.phase == "train":
             self.images = self.images[:split_idx]
@@ -87,7 +88,7 @@ class OpticDiscDataset(Dataset):
             self.images = self.images[split_idx:] or self.images[-1:]
             self.masks = self.masks[split_idx:] or self.masks[-1:]
 
-        print(f"OpticDiscDataset [{self.phase}]: {len(self.images)} amostras")
+        print(f"OpticDiscDataset [{self.phase}]: {len(self.images)} samples")
 
     def __len__(self):
         return len(self.images)
@@ -97,9 +98,9 @@ class OpticDiscDataset(Dataset):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         raw_mask = cv2.imread(str(self.masks[idx]), cv2.IMREAD_GRAYSCALE)
-        # Isola o disco optico ANTES de redimensionar, para que o teste de
-        # "toca a borda" (que exclui o fundo fora do FOV) opere na resolucao
-        # nativa da mascara.
+        # Isolate the optic disc BEFORE resizing, so the "touches the
+        # border" test (which excludes the background outside the FOV)
+        # operates at the mask's native resolution.
         disc_mask = _extract_disc_mask(raw_mask)
 
         image = cv2.resize(image, (self.img_size[1], self.img_size[0]))

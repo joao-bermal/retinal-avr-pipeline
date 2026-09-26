@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-Treino do modelo de deteccao do disco optico (EnhancedUNet, 1 canal),
-usado para corrigir a Zona B peripapilar no calculo do AVR.
+Trains the optic disc detection model (EnhancedUNet, 1 channel), used to
+correctly build the peripapillary Zone B in the AVR calculation.
 
-Dataset pequeno (IOSTAR, ~30 imagens com mascara de disco optico) -- poucas
-epocas, sem os graficos de evidencia pesados usados no treino de vasos.
+Small dataset (IOSTAR, ~30 images with optic disc mask ground truth) -- few
+epochs, without the heavier evidence plots used for vessel training.
 """
 
 import sys
@@ -43,7 +43,7 @@ def evaluate_best_model_od(model, val_loader):
 
 def main(epochs=None):
     print("=" * 60)
-    print("TREINO DO MODELO DE DETECCAO DO DISCO OPTICO")
+    print("OPTIC DISC DETECTION MODEL TRAINING")
     print("=" * 60)
 
     train_aug = SegmentationAugmentation(img_size=C["DATASET"]["IMAGE_SIZE"], phase="train").transform
@@ -69,11 +69,11 @@ def main(epochs=None):
 
     trainer = EnhancedSegmentationTrainer(model, train_loader, val_loader, resume=False, config=C, keep_all_checkpoints=True)
 
-    print("\nIniciando treino...")
+    print("\nStarting training...")
     best_model_path, history, final_metrics, run_id = trainer.train(epochs=epochs)
 
     if best_model_path and best_model_path.exists():
-        print(f"\nCarregando melhor checkpoint: {best_model_path}")
+        print(f"\nLoading best checkpoint: {best_model_path}")
         model.load_state_dict(torch.load(best_model_path, map_location=DEVICE, weights_only=True))
         final_metrics = evaluate_best_model_od(model, val_loader)
 
@@ -90,8 +90,8 @@ def main(epochs=None):
         with open(run_results_path / "training_results.json", "w") as f:
             json.dump(results, f, indent=2)
 
-        print(f"✅ Treino do disco óptico concluído. Dice: {final_metrics['dice_score']:.4f}")
-        print(f"   Resultados salvos em {run_results_path}")
+        print(f"✅ Optic disc training complete. Dice: {final_metrics['dice_score']:.4f}")
+        print(f"   Results saved to {run_results_path}")
 
 
 if __name__ == "__main__":

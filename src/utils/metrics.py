@@ -384,7 +384,7 @@ def create_sample_predictions_plot_segmentation(model: torch.nn.Module,
             else:
                 image_vis = image
             
-            # Fazer predição
+            # Run prediction
             input_image = image.unsqueeze(0).to(device)
             pred_mask = model(input_image)
             pred_mask = (pred_mask.squeeze().cpu().numpy() > 0.5).astype(np.uint8)
@@ -528,7 +528,7 @@ def create_sample_predictions_plot_av(model: torch.nn.Module,
     if num_samples == 1:
         axes = axes.reshape(1, -1)
     
-    # Colormap para A/V (como na imagem científica)
+    # Colormap for A/V (matching the scientific figure)
     from matplotlib.colors import ListedColormap
     colors = ['#000000', '#FF0000', '#0080FF']  # Black, Red, Blue
     av_cmap = ListedColormap(colors)
@@ -540,7 +540,7 @@ def create_sample_predictions_plot_av(model: torch.nn.Module,
             image = sample['image']
             gt_mask = sample['mask']
             
-            # Desnormalizar imagem para visualização
+            # Denormalize image for visualization
             if isinstance(image, torch.Tensor):
                 if image.shape[0] == 3:  # RGB
                     # Desnormalizar ImageNet
@@ -554,7 +554,7 @@ def create_sample_predictions_plot_av(model: torch.nn.Module,
             else:
                 image_vis = image
             
-            # Fazer predição
+            # Run prediction
             input_image = image.unsqueeze(0).to(device)
             pred_output = model(input_image)
             pred_mask = torch.argmax(pred_output, dim=1).squeeze().cpu().numpy()
@@ -608,7 +608,7 @@ def create_final_consolidated_analysis_av(final_metrics: Dict, save_path: Path =
     ax.text(0.05, 0.95, summary_text, transform=ax.transAxes,
                fontsize=11, verticalalignment='top', fontfamily='monospace',
                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightblue', alpha=0.8))
-    ax.set_title('Análise Consolidada de Classificação A/V', fontsize=14, fontweight='bold')
+    ax.set_title('Consolidated A/V Classification Analysis', fontsize=14, fontweight='bold')
     ax.axis('off')
     
     plt.tight_layout()

@@ -1,18 +1,19 @@
 # api/main.py
 """
-Camada HTTP fina sobre o ScientificAVRPipeline, para permitir que uma
-aplicacao web (ou qualquer cliente HTTP) rode a analise de AVR sem precisar
-importar o codebase Python diretamente.
+Thin HTTP layer over ScientificAVRPipeline, so a web application (or any
+HTTP client) can run the AVR analysis without importing the Python codebase
+directly.
 
-Uso local:
-    pip install -r requirements-api.txt   # alem de requirements.txt ou requirements-rocm.txt
+Local usage:
+    pip install -r requirements-api.txt   # on top of requirements.txt or requirements-rocm.txt
     uvicorn api.main:app --host 0.0.0.0 --port 8000
 
-Teste rapido:
+Quick test:
     curl -F "image=@data/DRIVE/test/images/01_test.tif" http://localhost:8000/analyze
 
-Sem autenticacao, sem deploy em produção -- serve para integracao local/
-desenvolvimento de uma aplicacao web em cima do pipeline existente.
+No authentication, no production deployment story -- this is for local
+integration/development of a web application on top of the existing
+pipeline (see frontend/ for the Next.js UI that calls this).
 """
 
 import logging
@@ -23,6 +24,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.pipeline.integrated_pipeline import ScientificAVRPipeline
@@ -37,14 +39,14 @@ _pipeline: ScientificAVRPipeline | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _pipeline
-    logger.info("Carregando ScientificAVRPipeline...")
+    logger.info("Loading ScientificAVRPipeline...")
     _pipeline = ScientificAVRPipeline()
     if not _pipeline.load_models():
-        # Nao derruba o processo -- /health e /analyze reportam o problema
-        # de forma clara em vez do servidor simplesmente nao subir.
+        # Don't crash the process -- /health and /analyze report the
+        # problem clearly instead of the server simply failing to start.
         logger.error(
-            "Falha ao carregar os modelos do pipeline -- /analyze vai falhar "
-            "ate que checkpoints validos existam em models/segmentation e "
+            "Failed to load pipeline models -- /analyze will fail until "
+            "valid checkpoints exist under models/segmentation and "
             "models/av_classification."
         )
     yield
@@ -53,20 +55,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Retinal AVR Pipeline API",
-    description="Analise automatica de AVR (arteriolo-venular ratio) a partir de retinografias.",
+    description="Automatic AVR (arteriolar-to-venular ratio) analysis from fundus photographs.",
     version="0.1.0",
     lifespan=lifespan,
 )
 
+# Allow the local Next.js dev server (and any other local frontend) to call
+# this API directly from the browser. Not meant for a public deployment.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 def _json_safe(value):
-    """Converte tipos numpy/torch para tipos nativos serializaveis em JSON."""
+    """Convert numpy/torch types to native JSON-serializable types."""
     if isinstance(value, (np.floating,)):
         return float(value)
     if isinstance(value, (np.integer,)):
         return int(value)
     if isinstance(value, np.ndarray):
-        return None  # mascaras/arrays nao vao na resposta JSON (ver /analyze)
+        return None  # masks/arrays don't go in the JSON response (see /analyze)
     if isinstance(value, torch.Tensor):
         return None
     if isinstance(value, (tuple, list)):
@@ -81,7 +93,7 @@ def health():
     if _pipeline is None or not _pipeline.is_initialized:
         return JSONResponse(
             status_code=503,
-            content={"status": "unavailable", "detail": "Pipeline nao inicializado (checkpoints ausentes?)."},
+            content={"status": "unavailable", "detail": "Pipeline not initialized (missing checkpoints?)."},
         )
     return {"status": "ok", "device": str(_pipeline.device)}
 
@@ -89,26 +101,26 @@ def health():
 @app.post("/analyze")
 async def analyze(image: UploadFile = File(...)):
     """
-    Recebe uma imagem de retinografia e roda o pipeline completo:
-    segmentacao de vasos -> classificacao A/V -> deteccao do disco optico
-    -> calculo cientifico do AVR (Zona B, Knudtson) -> risco cardiovascular.
+    Accepts a fundus image and runs the full pipeline: vessel segmentation ->
+    A/V classification -> optic disc detection -> scientific AVR calculation
+    (Zone B, Knudtson) -> cardiovascular risk.
     """
     if _pipeline is None or not _pipeline.is_initialized:
         raise HTTPException(
             status_code=503,
-            detail="Pipeline nao inicializado -- verifique se ha checkpoints treinados em models/.",
+            detail="Pipeline not initialized -- check that trained checkpoints exist under models/.",
         )
 
     suffix = Path(image.filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(
             status_code=400,
-            detail=f"Extensao '{suffix}' nao suportada. Use uma de: {sorted(ALLOWED_SUFFIXES)}",
+            detail=f"Unsupported extension '{suffix}'. Use one of: {sorted(ALLOWED_SUFFIXES)}",
         )
 
     contents = await image.read()
     if not contents:
-        raise HTTPException(status_code=400, detail="Arquivo de imagem vazio.")
+        raise HTTPException(status_code=400, detail="Empty image file.")
 
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
         tmp.write(contents)
@@ -119,11 +131,11 @@ async def analyze(image: UploadFile = File(...)):
     if not results or results.get("error"):
         raise HTTPException(
             status_code=422,
-            detail=f"Falha ao processar a imagem: {results.get('error') if results else 'sem resultado'}",
+            detail=f"Failed to process image: {results.get('error') if results else 'no result'}",
         )
 
-    # Remove arrays/tensors grandes (mask, predictions) da resposta -- a API
-    # devolve metricas e metadados, nao as mascaras binarias completas.
+    # Drop large arrays/tensors (mask, predictions) from the response -- the
+    # API returns metrics and metadata, not the full binary masks.
     excluded = {"mask", "predictions"}
     response = {k: _json_safe(v) for k, v in results.items() if k not in excluded}
     return response
