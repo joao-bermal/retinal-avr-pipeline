@@ -5,8 +5,11 @@
 Trains the optic disc detection model (EnhancedUNet, 1 channel), used to
 correctly build the peripapillary Zone B in the AVR calculation.
 
-Small dataset (IOSTAR, ~30 images with optic disc mask ground truth) -- few
-epochs, without the heavier evidence plots used for vessel training.
+Small dataset (IOSTAR, 30 images with optic disc mask ground truth), so few
+epochs. Equivalent to `python main.py --train_od`: same trainer settings
+(including the 0.3 s pause per batch that keeps the GPU out of thermal
+runaway, see docs/GPU_ROCM_RX6800XT.md) and the same center-error evidence
+from scripts/evaluate_optic_disc.py.
 """
 
 import sys
@@ -25,6 +28,7 @@ from src.data.segmentation_dataset import SegmentationAugmentation
 from src.models.segmentation_model import EnhancedUNet
 from src.training.segmentation_trainer import EnhancedSegmentationTrainer
 from src.metrics.evaluation_metrics import compute_segmentation_metrics
+from scripts.evaluate_optic_disc import run_evaluation
 
 
 def evaluate_best_model_od(model, val_loader):
@@ -67,7 +71,10 @@ def main(epochs=None):
         features=C["MODEL"]["FEATURES"],
     ).to(DEVICE)
 
-    trainer = EnhancedSegmentationTrainer(model, train_loader, val_loader, resume=False, config=C, keep_all_checkpoints=True)
+    trainer = EnhancedSegmentationTrainer(
+        model, train_loader, val_loader, resume=False, config=C,
+        keep_all_checkpoints=True, batch_pause_seconds=0.3,
+    )
 
     print("\nStarting training...")
     best_model_path, history, final_metrics, run_id = trainer.train(epochs=epochs)
@@ -90,6 +97,7 @@ def main(epochs=None):
         with open(run_results_path / "training_results.json", "w") as f:
             json.dump(results, f, indent=2)
 
+        run_evaluation(best_model_path, run_results_path / "evidence", do_sweep=True)
         print(f"✅ Optic disc training complete. Dice: {final_metrics['dice_score']:.4f}")
         print(f"   Results saved to {run_results_path}")
 

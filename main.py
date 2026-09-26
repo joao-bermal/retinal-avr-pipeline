@@ -17,6 +17,7 @@ from src.models.segmentation_model import EnhancedUNet
 from src.models.av_classification_model import EnhancedMultiDatasetAVNet
 
 from scripts.train_optic_disc import evaluate_best_model_od
+from scripts.evaluate_optic_disc import run_evaluation as evaluate_optic_disc_centers
 
 from scripts.train_segmentation import evaluate_best_model
 from scripts.train_classification import evaluate_best_model_av
@@ -67,11 +68,11 @@ def main():
         # occurrence of each new shape. On CUDA this is a quick, worthwhile
         # trade. On this ROCm/MIOpen setup (pip wheels, no prebuilt perf-db
         # for gfx1030) it degenerates into an exhaustive per-shape search
-        # that can take many minutes per layer -- confirmed empirically.
+        # that can take many minutes per layer (confirmed empirically).
         torch.backends.cudnn.benchmark = torch.version.hip is None
         gpu_name = torch.cuda.get_device_name(0)
         gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
-        print(f"🖥️  GPU: {gpu_name} ({gpu_mem:.1f} GB) — VRAM limited to 85%")
+        print(f"🖥️  GPU: {gpu_name} ({gpu_mem:.1f} GB), VRAM limited to 85%")
     else:
         print("⚠️  No GPU detected, using CPU")
 
@@ -244,8 +245,8 @@ def main():
         )
         trainer = EnhancedSegmentationTrainer(
             model, train_loader, val_loader, resume=args.resume, config=OPTIC_DISC_CONFIG,
-            keep_all_checkpoints=True,  # small dataset -- worth evaluating every epoch by center-to-center distance
-            batch_pause_seconds=0.3,  # tiny dataset sustains 100% GPU with no pause -- see trainer docstring
+            keep_all_checkpoints=True,  # every improving epoch is kept so the center-error sweep can score each one
+            batch_pause_seconds=0.3,  # tiny dataset sustains 100% GPU with no pause, see trainer docstring
         )
 
         best_model_path, history, final_metrics, run_id = trainer.train(epochs=OPTIC_DISC_CONFIG["TRAINING"]["EPOCHS"])
@@ -265,7 +266,8 @@ def main():
             }
             with open(run_results_path / 'training_results.json', 'w') as f:
                 json.dump(results, f, indent=2)
-            print(f"✅ Optic disc model dice: {final_metrics['dice_score']:.4f} — evidence saved to {run_results_path}")
+            evaluate_optic_disc_centers(best_model_path, run_results_path / "evidence", do_sweep=True)
+            print(f"✅ Optic disc model dice: {final_metrics['dice_score']:.4f}, evidence saved to {run_results_path}")
 
         print("=== OPTIC DISC DETECTION TRAINING COMPLETED ===\n")
 
